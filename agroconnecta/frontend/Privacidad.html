@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aviso de privacidad - AgroConnecta</title>
+    <link rel="stylesheet" href="css/app.css">
+    <link rel="icon" href="img/favicon.svg">
+    <script src="js/api.js"></script>
+    <script src="agro_data.js"></script>
+    <style>.legal h3{font-weight:700;color:#0B2319;margin-top:1.75rem;margin-bottom:.5rem;font-size:1.05rem} .legal p,.legal li{color:#4b5563;font-size:.9rem;line-height:1.65} .legal ul{list-style:disc;padding-left:1.25rem;margin:.5rem 0} .legal li{margin:.2rem 0}</style>
+</head>
+<body class="bg-[#F8F7F2] flex min-h-screen">
+    <div id="sidebar-root" data-page=""></div>
+    <main class="flex-1 p-8 overflow-y-auto min-w-0">
+        <article class="legal max-w-3xl bg-white rounded-3xl border border-gray-100 shadow-sm p-6 sm:p-10">
+            <p class="text-xs uppercase tracking-widest text-[#2E6B42] font-bold">Versión 2026-11 · prueba piloto</p>
+            <h2 class="text-4xl font-serif text-[#0B2319] mb-2">Aviso de privacidad integral</h2>
+            <p class="!text-xs bg-amber-50 text-amber-800 rounded-xl p-3">Documento modelo para la prueba piloto académica. Antes del lanzamiento comercial debe revisarlo un abogado
+              y ajustarse a la Ley Federal de Protección de Datos Personales en Posesión de los Particulares vigente desde el 21 de marzo de 2025 y a su reglamento.</p>
+
+            <h3>1. ¿Quién es responsable de tus datos?</h3>
+            <p>AgroConnecta Sureste (en constitución como S.A.S.), con domicilio en Villahermosa, Tabasco. Contacto de privacidad: <b>privacidad@agroconnecta.mx</b>.</p>
+
+            <h3>2. ¿Qué datos usamos?</h3>
+            <ul>
+                <li><b>Identificación y contacto:</b> nombre, correo, teléfono (se guarda cifrado con AES-256) y municipio.</li>
+                <li><b>Entrega:</b> dirección y punto de entrega para calcular el flete.</li>
+                <li><b>Vendedores:</b> nombre del negocio, RFC (cifrado), ubicación de sus parcelas (superficie y cultivo) y, para la verificación, INE,
+                    comprobante de domicilio y un documento que los ligue a su parcela. Estos archivos se guardan cifrados y solo los ve el administrador que revisa.</li>
+                <li><b>Operaciones:</b> pedidos, pagos (método, monto y referencia), envíos, calificaciones y devoluciones.</li>
+                <li><b>Seguridad:</b> dirección IP y navegador de cada sesión, y registro de cambios (bitácora de auditoría).</li>
+            </ul>
+            <p>No pedimos datos sensibles. <b>Nunca guardamos los datos de tu tarjeta</b>: los procesa directamente la pasarela de pago.</p>
+
+            <h3>3. ¿Para qué los usamos?</h3>
+            <p><b>Finalidades necesarias:</b> crear y proteger tu cuenta; verificar la identidad de los productores; publicar productos y terrenos;
+                procesar pedidos, pagos en custodia, reembolsos y fletes; mediar disputas; calcular el Score AgroConfianza; cumplir obligaciones fiscales y legales.</p>
+            <p><b>Finalidades opcionales</b> (puedes negarte escribiendo al correo de privacidad): enviarte avisos de capacitaciones, ferias y promociones.</p>
+
+            <h3>4. ¿Con quién los compartimos?</h3>
+            <ul>
+                <li>Con la <b>otra parte de tu compra</b>: el vendedor ve tu nombre y dirección de entrega. El teléfono del vendedor se muestra solo después de un pedido formal.</li>
+                <li>Con el <b>transportista aliado</b> que lleva tu pedido (nombre, dirección y teléfono de entrega).</li>
+                <li>Con las <b>pasarelas de pago</b> (Stripe, Mercado Pago, SPEI) para cobrar y reembolsar.</li>
+                <li>Con una <b>institución financiera</b> solo si tú, como productor, decides entregarle tu Reporte AgroConfianza.</li>
+                <li>Con autoridades, cuando una ley lo exija.</li>
+            </ul>
+            <p>No vendemos ni rentamos tus datos.</p>
+
+            <h3>5. Tus derechos ARCO</h3>
+            <p>Puedes <b>acceder</b> a tus datos, <b>rectificarlos</b>, <b>cancelarlos</b> u <b>oponerte</b> a su uso, y revocar tu consentimiento, escribiendo a
+                privacidad@agroconnecta.mx con tu nombre, correo de la cuenta y lo que solicitas. Respondemos en un máximo de 20 días hábiles.
+                Parte de tus datos (nombre, teléfono, dirección) los puedes cambiar tú mismo en «Mi cuenta».</p>
+
+            <h3>6. Conservación y seguridad</h3>
+            <p>Contraseñas con bcrypt; teléfono, RFC y documentos cifrados con AES-256-GCM; pedidos y pagos firmados con HMAC-SHA256; bitácora encadenada con SHA-256;
+                respaldos diarios; verificación en dos pasos para administradores y vendedores. Los datos de operaciones se conservan el tiempo que exigen las leyes fiscales.</p>
+
+            <h3>7. Almacenamiento en tu navegador</h3>
+            <p>No usamos cookies de rastreo ni publicidad de terceros. Tu navegador guarda únicamente tu sesión y tu carrito.</p>
+
+            <h3>8. Cambios a este aviso</h3>
+            <p>Si este aviso cambia, lo publicaremos aquí con una nueva versión y fecha. La versión que aceptaste aparece en «Mi cuenta».</p>
+        </article>
+    </main>
+
+    <script src="Barra_Lateral.js"></script>
+</body>
+</html>

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seguimiento - AgroConnecta</title>
+<link rel="stylesheet" href="css/app.css">
+<link rel="icon" href="img/favicon.svg">
+<script src="js/api.js"></script>
+<script src="agro_data.js"></script>
+</head>
+<body class="bg-[#F8F7F2] flex min-h-screen">
+<div id="sidebar-root" data-page="pedidos"></div>
+
+<!-- Seguimiento.html?pedido=<id_pedido>
+     GET /api/pedidos/:id → pedido, detalle, envío + HISTORIAL_ENVIO, pago, calificación.
+     Se actualiza solo cada 30 segundos. -->
+<main class="flex-1 p-8 overflow-y-auto min-w-0">
+  <a href="Pedidos.html" class="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-[#2E6B42] font-medium mb-4">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    Volver a pedidos
+  </a>
+  <div id="contenido" class="max-w-5xl"><div class="skeleton h-40 mb-6"></div><div class="skeleton h-96"></div></div>
+</main>
+
+<script>
+const sesion = API.requireLogin();
+const ROL = sesion ? sesion.tipo_usuario : null;
+const id = new URLSearchParams(location.search).get('pedido');
+const C = document.getElementById('contenido');
+
+const PASOS_ENVIO = [
+  { e: 'PENDIENTE', t: 'Pedido recibido', d: 'El vendedor recibió tu pedido', i: '🧾' },
+  { e: 'CONFIRMADO', t: 'Confirmado', d: 'El vendedor está preparando tus productos', i: '✅' },
+  { e: 'EN_CAMINO', t: 'En camino', d: 'Tu pedido va hacia la dirección de entrega', i: '🚚' },
+  { e: 'ENTREGADO', t: 'Entregado', d: 'Recibiste tu pedido', i: '📦' },
+];
+const PASOS_RECOLECCION = [
+  PASOS_ENVIO[0], PASOS_ENVIO[1],
+  { e: 'EN_CAMINO', t: 'Listo para recoger', d: 'Pasa por tu pedido con el vendedor', i: '🏪' },
+  { e: 'ENTREGADO', t: 'Recogido', d: 'Recogiste tu pedido', i: '📦' },
+];
+const ORDEN = ['PENDIENTE', 'CONFIRMADO', 'EN_CAMINO', 'ENTREGADO'];
+const DE_ENVIO = { PREPARANDO: null, EN_TRANSITO: 'EN_CAMINO', LISTO_RECOLECCION: 'EN_CAMINO', ENTREGADO: 'ENTREGADO' };
+
+function fechaDePaso(p, paso) {
+  const h = (p.envio && p.envio.historial) || [];
+  if (paso === 'PENDIENTE') return p.fecha_pedido;
+  if (paso === 'CONFIRMADO') { const x = h.find(m => /confirm/i.test(m.descripcion || '')); return x && x.fecha_cambio; }
+  const x = h.find(m => DE_ENVIO[m.estado_nuevo] === paso);
+  return x && x.fecha_cambio;
+}
+
+function lineaDeTiempo(p) {
+  const pasos = p.modalidad_entrega === 'ENVIO' ? PASOS_ENVIO : PASOS_RECOLECCION;
+  if (['CANCELADO', 'DEVUELTO'].includes(p.estado)) {
+    const ult = (p.envio && p.envio.historial || []).slice(-1)[0];
+    return `<div class="bg-red-50 text-red-700 rounded-2xl p-6"><p class="text-2xl mb-1">${p.estado === 'CANCELADO' ? '✖' : '↩'}</p>
+      <p class="font-bold text-lg">Pedido ${p.estado === 'CANCELADO' ? 'cancelado' : 'devuelto'}</p>
+      <p class="text-sm">${ult ? UI.fechaHora(ult.fecha_cambio) : ''} · El stock regresó al vendedor${p.pago && p.pago.estado === 'REEMBOLSADO' ? ' y el pago fue reembolsado' : ''}.</p></div>`;
+  }
+  const actual = ORDEN.indexOf(p.estado);
+  return `<ol class="relative">${pasos.map((paso, k) => {
+    const hecho = k <= actual, ahora = k === actual;
+    const f = hecho ? fechaDePaso(p, paso.e) : null;
+    return `<li class="flex gap-4 ${k < pasos.length - 1 ? 'pb-8' : ''} relative">
+      ${k < pasos.length - 1 ? `<span class="absolute left-[23px] top-12 bottom-0 w-0.5 ${k < actual ? 'bg-[#2E6B42]' : 'bg-gray-200'}"></span>` : ''}
+      <div class="w-12 h-12 rounded-full flex items-center justify-center text-xl flex-shrink-0 z-10
+        ${hecho ? 'bg-[#2E6B42] text-white' : 'bg-gray-100 text-gray-300'} ${ahora ? 'ring-4 ring-[#4fb877]/30' : ''}">${hecho ? paso.i : '○'}</div>
+      <div class="pt-1">
+        <p class="font-bold ${hecho ? 'text-[#0B2319]' : 'text-gray-400'}">${paso.t} ${ahora && p.estado !== 'ENTREGADO' ? '<span class="ml-2 text-[10px] uppercase tracking-wider bg-[#F3F9F6] text-[#2E6B42] px-2 py-0.5 rounded-full">Ahora</span>' : ''}</p>
+        <p class="text-sm ${hecho ? 'text-gray-500' : 'text-gray-300'}">${paso.d}</p>
+        ${f ? `<p class="text-xs text-gray-400 mt-0.5">${UI.fechaHora(f)}</p>` : ''}
+      </div></li>`;
+  }).join('')}</ol>`;
+}
+
+function acciones(p) {
+  const a = [];
+  if (ROL === 'VENDEDOR') {
+    const pagoOk = !p.pago || p.pago.estado === 'APROBADO' || ['EFECTIVO', 'FINANCIAMIENTO'].includes(p.pago.metodo);
+    if (p.estado === 'PENDIENTE') a.push(pagoOk ? `<button class="btn-verde" onclick="mover('CONFIRMADO')">Confirmar pedido</button>`
+      : '<span class="text-xs text-orange-600 bg-orange-50 px-3 py-2 rounded-xl">Esperando el pago del comprador</span>');
+    if (p.estado === 'CONFIRMADO') a.push(`<button class="btn-verde" onclick="mover('EN_CAMINO')">${p.modalidad_entrega === 'ENVIO' ? 'Marcar en camino' : 'Listo para recoger'}</button>`);
+    if (p.estado === 'EN_CAMINO') a.push(`<button class="btn-verde" onclick="mover('ENTREGADO')">Marcar entregado</button>`);
+  }
+  if (ROL === 'COMPRADOR' && p.estado === 'PENDIENTE') a.push(`<button class="btn-borde text-red-500" onclick="mover('CANCELADO')">Cancelar pedido</button>`);
+  if (ROL === 'COMPRADOR' && p.estado === 'ENTREGADO' && !p.recepcion_confirmada_en) a.push(`<button class="btn-verde" onclick="recibido()">✓ Confirmar que lo recibí</button>`);
+  return a.join('');
+}
+
+let pedido = null, picker = null;
+function render(p) {
+  pedido = p;
+  const b = UI.ESTADO_PEDIDO[p.estado];
+  const env = p.envio || {};
+  const otro = ROL === 'COMPRADOR'
+    ? `<a href="Perfil.html?vendedor=${UI.esc(p.id_vendedor)}" class="font-semibold text-[#2E6B42] hover:underline">🏪 ${UI.esc(p.vendedor_nombre)}</a>`
+    : `<a href="Perfil.html?comprador=${UI.esc(p.id_comprador)}" class="font-semibold text-[#2E6B42] hover:underline">🛒 ${UI.esc(p.comprador)}</a>`;
+  C.innerHTML = `
+  <div class="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 sm:p-8 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div><p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">Seguimiento</p>
+      <h1 class="text-4xl font-serif text-[#0B2319]">Pedido #${p.folio}</h1>
+      <p class="text-sm text-gray-500 mt-1">${otro} · ${UI.fecha(p.fecha_pedido)} · ${p.modalidad_entrega === 'ENVIO' ? '📦 Envío a domicilio' : '🏪 Recolección'}</p></div>
+    <div class="text-left sm:text-right">${UI.badge(b.l, b.c)}<p class="text-2xl font-bold text-[#2E6B42] mt-2">${UI.money(p.total)}</p></div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+    <div class="lg:col-span-3 space-y-6">
+      <div class="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 sm:p-8">
+        <h3 class="font-bold text-[#0B2319] mb-6">Estado del pedido</h3>
+        ${lineaDeTiempo(p)}
+        <div class="flex flex-wrap gap-2 mt-6">${acciones(p)}</div>
+      </div>
+      <div id="opinion"></div>
+      <div class="bg-white rounded-3xl border border-gray-100 shadow-sm p-6">
+        <h3 class="font-bold text-[#0B2319] mb-4">Movimientos registrados</h3>
+        <ul class="space-y-3 text-sm">${(env.historial || []).slice().reverse().map(h => `
+          <li class="flex gap-3"><span class="w-2 h-2 rounded-full bg-[#4fb877] mt-2 flex-shrink-0"></span>
+          <div><p class="text-[#0B2319]">${UI.esc(h.descripcion || h.estado_nuevo)}</p><p class="text-xs text-gray-400">${UI.fechaHora(h.fecha_cambio)}</p></div></li>`).join('')}</ul>
+      </div>
+    </div>
+
+    <div class="lg:col-span-2 space-y-6">
+      <div class="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 space-y-3 text-sm">
+        <h3 class="font-bold text-[#0B2319]">${p.modalidad_entrega === 'ENVIO' ? 'Datos de envío' : 'Recolección'}</h3>
+        ${p.direccion_entrega ? `<p class="text-gray-600">📍 ${UI.esc(p.direccion_entrega)}</p>` : '<p class="text-gray-500">Recoge con el vendedor. Contáctalo desde su perfil.</p>'}
+        <div class="grid grid-cols-2 gap-3 pt-1">
+          <div class="bg-[#F8F7F2] rounded-xl p-3"><p class="text-[11px] text-gray-400">Transportista aliado</p><p class="font-semibold">${UI.esc(env.transportista_aliado || env.transportista || 'Por asignar')}</p>
+            ${env.transportista_vehiculo ? `<p class="text-[11px] text-gray-400">${UI.esc(env.transportista_vehiculo)}</p>` : ''}</div>
+          <div class="bg-[#F8F7F2] rounded-xl p-3"><p class="text-[11px] text-gray-400">Número de guía</p><p class="font-semibold break-all">${UI.esc(env.numero_guia || '—')}</p></div>
+          <div class="bg-[#F8F7F2] rounded-xl p-3 col-span-2"><p class="text-[11px] text-gray-400">${p.estado === 'ENTREGADO' ? 'Entregado el' : 'Entrega estimada'}</p>
+            <p class="font-semibold">${p.estado === 'ENTREGADO' && env.fecha_entrega ? UI.fechaHora(env.fecha_entrega) : UI.fecha(env.fecha_estimada)}</p></div>
+        </div>
+      </div>
+      <div class="bg-white rounded-3xl border border-gray-100 shadow-sm p-6">
+        <h3 class="font-bold text-[#0B2319] mb-4">Productos</h3>
+        <div class="space-y-3">${p.detalles.map(d => `
+          <a href="Producto.html?id=${UI.esc(d.id_producto)}" class="flex items-center gap-3">
+            <img src="${UI.img(d.imagen)}" class="w-12 h-12 rounded-lg object-cover border border-gray-100" onerror="this.src=UI.FALLBACK_IMG">
+            <div class="flex-1 min-w-0"><p class="font-semibold text-sm text-[#0B2319] truncate">${UI.esc(d.nombre_producto)}</p>
+              <p class="text-xs text-gray-400">${d.cantidad} ${UI.esc(d.unidad)} × ${UI.money(d.precio_unitario)}</p></div>
+            <p class="text-sm font-semibold">${UI.money(d.subtotal)}</p></a>`).join('')}</div>
+        <div class="border-t border-gray-100 mt-4 pt-3 text-sm space-y-1">
+          <div class="flex justify-between text-gray-500"><span>Subtotal</span><span>${UI.money(p.subtotal)}</span></div>
+          <div class="flex justify-between text-gray-500"><span>IVA</span><span>${UI.money(p.impuestos_iva)}</span></div>
+          <div class="flex justify-between text-gray-500"><span>Flete${p.distancia_km ? ` · ${p.distancia_km} km` : ''}</span><span>${UI.money(p.costo_envio)}</span></div>
+          <div class="flex justify-between font-bold"><span>Total</span><span>${UI.money(p.total)}</span></div>
+        </div>
+      </div>
+      <div class="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 text-sm">
+        <h3 class="font-bold text-[#0B2319] mb-2">Pago</h3>
+        ${p.pago ? `<p>${UI.METODO[p.pago.metodo]} ${UI.badge(p.pago.estado, UI.ESTADO_PAGO[p.pago.estado])}</p>
+          ${p.pago.referencia ? `<p class="text-xs text-gray-400 mt-1">Ref. ${UI.esc(p.pago.referencia)}</p>` : ''}` : '—'}
+        ${p.financiamiento ? `<p class="text-xs text-gray-500 mt-2">${p.financiamiento.plazos_pagados}/${p.financiamiento.num_plazos} pagos de ${UI.money(p.financiamiento.monto_plazo)}</p>` : ''}
+        ${p.custodia_estado && UI.CUSTODIA[p.custodia_estado] && !['SIN_PAGO'].includes(p.custodia_estado) ? `
+        <div class="mt-3 rounded-xl p-3 text-xs ${UI.CUSTODIA[p.custodia_estado].c}">
+          <p class="font-bold">🔒 ${UI.CUSTODIA[p.custodia_estado].l}</p>
+          <p class="mt-0.5">${p.custodia_estado === 'RETENIDO' ? (p.liberar_despues_de ? 'Se libera al vendedor el ' + UI.fechaHora(p.liberar_despues_de) : 'Se libera 48 h después de que el comprador confirme de recibido.')
+            : p.custodia_estado === 'LIBERADO' ? 'Entregado al vendedor el ' + UI.fechaHora(p.custodia_liberada_en)
+            : p.custodia_estado === 'REEMBOLSADO' ? 'El dinero regresó al comprador.' : 'Pago directo entre comprador y vendedor.'}</p></div>` : ''}
+      </div>
+    </div>
+  </div>`;
+
+  // Opinión del comprador
+  const box = document.getElementById('opinion');
+  if (p.calificacion) {
+    box.innerHTML = `<div class="bg-yellow-50 rounded-3xl p-6"><p class="text-xs text-yellow-700 font-semibold uppercase mb-2">Tu opinión</p>
+      <div class="flex gap-0.5 mb-1">${UI.stars(p.calificacion.puntuacion, 'w-6 h-6')}</div>
+      ${p.calificacion.comentario ? `<p class="text-sm text-gray-700">${UI.esc(p.calificacion.comentario)}</p>` : ''}</div>`;
+  } else if (ROL === 'COMPRADOR' && p.estado === 'ENTREGADO') {
+    box.innerHTML = `<div class="bg-white rounded-3xl border-2 border-[#4fb877]/40 p-6">
+      <h3 class="font-bold text-[#0B2319] mb-1">¿Qué te pareció tu compra?</h3>
+      <p class="text-sm text-gray-500 mb-4">Califica a ${UI.esc(p.vendedor_nombre)}. Tu opinión aparece en su perfil.</p>
+      <div id="estrellas" class="mb-4"></div>
+      <textarea id="comentario" rows="3" maxlength="1000" class="agro-input mb-4" placeholder="Cuéntanos sobre la calidad, la entrega y la atención"></textarea>
+      <button id="btn-op" class="btn-verde" disabled>Publicar opinión</button></div>`;
+    picker = UI.starPicker(document.getElementById('estrellas'), 0, () => document.getElementById('btn-op').disabled = false);
+    document.getElementById('btn-op').onclick = async () => {
+      try {
+        await API.post('/calificaciones', { id_pedido: p.id_pedido, puntuacion: picker.valor, comentario: document.getElementById('comentario').value.trim() });
+        UI.toast('¡Gracias por tu opinión!'); cargar();
+      } catch (e) { UI.toast(e.message, 'error'); }
+    };
+  }
+}
+
+async function mover(estado) {
+  if (estado === 'CANCELADO' && !confirm('¿Cancelar este pedido?')) return;
+  try { await API.put(`/pedidos/${pedido.id_pedido}/estado`, { estado }); UI.toast('Pedido actualizado'); cargar(); }
+  catch (e) { UI.toast(e.message, 'error'); }
+}
+
+async function recibido() {
+  if (!confirm('¿Recibiste completo tu pedido? En 48 h se libera el pago al vendedor.')) return;
+  try { const r = await API.post(`/pedidos/${pedido.id_pedido}/recibido`); UI.toast(r.liberar_despues_de ? '¡Gracias! Pago programado para el ' + UI.fechaHora(r.liberar_despues_de) : '¡Gracias por confirmar!'); cargar(); }
+  catch (e) { UI.toast(e.message, 'error'); }
+}
+
+async function cargar() {
+  try { render(await API.get('/pedidos/' + encodeURIComponent(id))); }
+  catch (e) { C.innerHTML = `<div class="text-center py-20 text-gray-400">${UI.esc(e.message)}</div>`; }
+}
+if (sesion) {
+  cargar();
+  // Actualización automática (si no estás escribiendo una opinión)
+  setInterval(() => { const t = document.getElementById('comentario'); if ((!t || !t.value) && !(picker && picker.valor)) cargar(); }, 30000);
+}
+</script>
+<script src="Barra_Lateral.js"></script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calificaciones - AgroConnecta</title>
+    <link rel="stylesheet" href="css/app.css">
+    <link rel="icon" href="img/favicon.svg">
+    <script src="js/api.js"></script>
+    <script src="agro_data.js"></script>
+</head>
+<body class="bg-[#F8F7F2] flex min-h-screen">
+    <div id="sidebar-root" data-page="calificaciones"></div>
+
+    <main class="flex-1 p-8 overflow-y-auto min-w-0">
+        <header class="mb-8">
+            <h2 class="text-4xl font-serif text-[#0B2319] mb-1">Calificaciones</h2>
+            <p class="text-gray-400 text-sm" id="subtitulo">Reseñas y valoraciones del marketplace</p>
+        </header>
+
+        <!-- Pendientes por calificar (solo compradores) → GET /api/calificaciones/pendientes -->
+        <section id="pendientes" class="hidden mb-8"></section>
+
+        <!-- Resumen → GET /api/calificaciones/resumen?id_vendedor= -->
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-8">
+            <div class="flex items-center gap-6">
+                <div class="text-center">
+                    <p class="text-5xl font-bold text-[#0B2319]" id="puntuacion-promedio">—</p>
+                    <div class="flex gap-0.5 justify-center my-2" id="estrellas-promedio"></div>
+                    <p class="text-xs text-gray-400" id="total-resenas">0 reseñas</p>
+                </div>
+                <div class="flex-1 space-y-2" id="barras-distribucion"></div>
+            </div>
+        </div>
+
+        <!-- Lista → GET /api/calificaciones (vista v_calificacion_publica: nombre del comprador abreviado) -->
+        <div id="calificaciones-lista" class="space-y-4"></div>
+        <div id="empty-calificaciones" class="hidden flex-col items-center justify-center py-24 text-center">
+            <p class="text-[#0B2319] font-semibold text-lg">Sin calificaciones</p>
+            <p class="text-gray-400 text-sm">Aún no hay reseñas registradas.</p>
+        </div>
+    </main>
+
+    <script>
+        const s = API.getSession();
+        const esVendedor = s && s.tipo_usuario === 'VENDEDOR';
+        const idv = esVendedor ? s.id_rol : (new URLSearchParams(location.search).get('vendedor') || '');
+
+        function renderResumen(d) {
+            const total = d.total || 0, prom = d.promedio || 0;
+            document.getElementById('puntuacion-promedio').textContent = total ? prom.toFixed(1) : '—';
+            document.getElementById('estrellas-promedio').innerHTML = UI.stars(prom, 'w-5 h-5');
+            document.getElementById('total-resenas').textContent = `${total} reseña${total !== 1 ? 's' : ''}`;
+            document.getElementById('barras-distribucion').innerHTML = [5, 4, 3, 2, 1].map(n => {
+                const c = (d.distribucion || {})[n] || 0, pct = total ? Math.round(c / total * 100) : 0;
+                return `<div class="flex items-center gap-2 text-xs text-gray-500"><span class="w-4 text-right">${n}</span>
+                    <span class="text-[#f59e0b]">★</span><div class="flex-1 bg-gray-100 rounded-full h-2"><div class="bg-[#f59e0b] h-2 rounded-full" style="width:${pct}%"></div></div>
+                    <span class="w-6">${c}</span></div>`;
+            }).join('');
+        }
+
+        function califCard(c) {
+            return `<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                <div class="flex items-start justify-between gap-4 mb-2">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-full bg-[#2E6B42] flex items-center justify-center text-white text-sm font-bold">${UI.esc((c.comprador || 'US').substring(0, 2).toUpperCase())}</div>
+                        <div>${s ? `<a href="Perfil.html?comprador=${UI.esc(c.id_comprador)}" class="font-semibold text-[#0B2319] text-sm hover:underline">${UI.esc(c.comprador)}</a>` : `<p class="font-semibold text-[#0B2319] text-sm">${UI.esc(c.comprador)}</p>`}
+                          <p class="text-xs text-gray-400">${UI.fecha(c.fecha)}${esVendedor ? '' : ` · <a class="text-[#2E6B42]" href="Perfil.html?vendedor=${UI.esc(c.id_vendedor)}">${UI.esc(c.vendedor_nombre)}</a>`}</p></div>
+                    </div>
+                    <div class="flex gap-0.5">${UI.stars(c.puntuacion)}</div>
+                </div>
+                ${c.productos ? `<p class="text-[11px] text-gray-400 mb-1">Compró: ${UI.esc(c.productos)}</p>` : ''}
+                ${c.comentario ? `<p class="text-sm text-gray-600 leading-relaxed">${UI.esc(c.comentario)}</p>` : ''}
+            </div>`;
+        }
+
+        async function cargarPendientes() {
+            if (!s || s.tipo_usuario !== 'COMPRADOR') return;
+            const lista = await API.get('/calificaciones/pendientes');
+            const box = document.getElementById('pendientes');
+            if (!lista.length) { box.classList.add('hidden'); return; }
+            box.classList.remove('hidden');
+            box.innerHTML = `<h3 class="font-bold text-[#0B2319] mb-3">Pedidos por calificar (${lista.length})</h3>
+              <div class="space-y-3">${lista.map(p => `
+                <div class="bg-white border border-[#4fb877]/30 rounded-2xl p-4 flex items-center justify-between gap-3 flex-wrap">
+                  <div><p class="font-semibold text-sm text-[#0B2319]">#${p.folio} · ${UI.esc(p.vendedor_nombre)}</p>
+                  <p class="text-xs text-gray-400">${UI.esc(p.productos)}</p></div>
+                  <a href="Perfil.html?vendedor=${UI.esc(p.id_vendedor)}#calificar" class="btn-verde !py-2 text-xs">★ Calificar y opinar</a>
+                </div>`).join('')}</div>`;
+        }
+        async function calificar(id, n) {
+            const comentario = prompt(`Calificación: ${'★'.repeat(n)}\n¿Quieres dejar un comentario? (opcional)`) || '';
+            try {
+                await API.post('/calificaciones', { id_pedido: id, puntuacion: n, comentario });
+                UI.toast('¡Gracias por tu calificación!');
+                cargar();
+            } catch (e) { UI.toast(e.message, 'error'); }
+        }
+
+        async function cargar() {
+            if (esVendedor) document.getElementById('subtitulo').textContent = `Lo que opinan tus compradores de ${s.nombre_negocio || 'tu tienda'}`;
+            const q = idv ? `?id_vendedor=${idv}` : '';
+            try {
+                const [resumen, lista] = await Promise.all([API.get('/calificaciones/resumen' + q), API.get('/calificaciones' + q)]);
+                renderResumen(resumen);
+                if (!esVendedor && idv && lista[0]) document.getElementById('subtitulo').textContent = `Reseñas de ${lista[0].vendedor_nombre}`;
+                document.getElementById('calificaciones-lista').innerHTML = lista.map(califCard).join('');
+                document.getElementById('empty-calificaciones').style.display = lista.length ? 'none' : 'flex';
+                await cargarPendientes();
+            } catch (e) { UI.toast(e.message, 'error'); }
+        }
+        cargar();
+    </script>
+    <script src="Barra_Lateral.js"></script>
+</body>
+</html>

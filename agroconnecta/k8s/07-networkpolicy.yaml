@@ -1,0 +1,33 @@
+# Seguridad de red: la base de datos solo acepta conexiones de la API,
+# y la API solo recibe tráfico del frontend (Nginx).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: db-solo-desde-api
+  namespace: agroconnecta
+spec:
+  podSelector:
+    matchLabels: { app: agroconnecta-db }
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: agroconnecta-api }
+      ports:
+        - { protocol: TCP, port: 5432 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-solo-desde-web
+  namespace: agroconnecta
+spec:
+  podSelector:
+    matchLabels: { app: agroconnecta-api }
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: agroconnecta-web }
+      ports:
+        - { protocol: TCP, port: 3000 }

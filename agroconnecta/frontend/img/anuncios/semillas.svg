@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 200" role="img" aria-label="Semillas del Trópico (anunciante ficticio)">
+  <defs><linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#1f5130"/><stop offset="1" stop-color="#2E6B42"/></linearGradient></defs>
+  <rect width="640" height="200" rx="18" fill="url(#g)"/>
+  <g fill="#4FB877" opacity=".35"><circle cx="560" cy="40" r="80"/><circle cx="610" cy="170" r="60"/></g>
+  <g transform="translate(470 58)">
+    <path d="M40 90 C40 40 40 20 40 0" stroke="#F8F7F2" stroke-width="6" fill="none" stroke-linecap="round"/>
+    <path d="M40 40 C10 40 0 15 0 0 C25 0 40 15 40 40Z" fill="#F8F7F2"/>
+    <path d="M40 22 C70 22 85 0 85 -12 C55 -12 40 5 40 22Z" fill="#F59E0B"/>
+    <ellipse cx="40" cy="96" rx="44" ry="10" fill="#0B2319" opacity=".35"/>
+  </g>
+  <text x="34" y="62" font-family="DM Sans, Arial, sans-serif" font-size="15" font-weight="700" fill="#F59E0B" letter-spacing="2">SEMILLAS</text>
+  <text x="34" y="100" font-family="DM Serif Display, Georgia, serif" font-size="36" fill="#F8F7F2">Semillas del Trópico</text>
+  <text x="34" y="134" font-family="DM Sans, Arial, sans-serif" font-size="15" fill="#e3efe7">Maíz y hortalizas certificadas para el sureste</text>
+  <text x="34" y="166" font-family="DM Sans, Arial, sans-serif" font-size="13" font-weight="700" fill="#F8F7F2">Asesoría gratis en tu parcela →</text>
+</svg>

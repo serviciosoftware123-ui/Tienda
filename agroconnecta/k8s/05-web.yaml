@@ -1,0 +1,49 @@
+# Frontend Nginx — Deployment + Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: agroconnecta-web
+  namespace: agroconnecta
+spec:
+  # NodePort para probar sin Ingress: http://localhost:30080 (Docker Desktop)
+  type: NodePort
+  selector: { app: agroconnecta-web }
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      nodePort: 30080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agroconnecta-web
+  namespace: agroconnecta
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: agroconnecta-web }
+  template:
+    metadata:
+      labels: { app: agroconnecta-web, tier: frontend }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101           # usuario "nginx" de la imagen nginx-unprivileged
+      containers:
+        - name: web
+          image: agroconnecta/web:3.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - { name: API_UPSTREAM, value: "agroconnecta-api:3000" }
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet: { path: /, port: 8080 }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 32Mi }
+            limits:   { cpu: 250m, memory: 128Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }

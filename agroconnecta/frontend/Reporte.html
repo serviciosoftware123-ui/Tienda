@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verificar reporte - AgroConnecta</title>
+    <link rel="stylesheet" href="css/app.css">
+    <link rel="icon" href="img/favicon.svg">
+    <script src="js/api.js"></script>
+    <script src="agro_data.js"></script>
+    <style>.legal h3{font-weight:700;color:#0B2319;margin-top:1.75rem;margin-bottom:.5rem;font-size:1.05rem} .legal p,.legal li{color:#4b5563;font-size:.9rem;line-height:1.65} .legal ul{list-style:disc;padding-left:1.25rem;margin:.5rem 0} .legal li{margin:.2rem 0}</style>
+</head>
+<body class="bg-[#F8F7F2] flex min-h-screen">
+    <div id="sidebar-root" data-page=""></div>
+    <main class="flex-1 p-8 overflow-y-auto min-w-0">
+        <div class="max-w-xl">
+            <p class="text-xs uppercase tracking-widest text-[#2E6B42] font-bold">Para cajas populares y financieras rurales</p>
+            <h2 class="text-4xl font-serif text-[#0B2319] mb-2">Verificar un Reporte AgroConfianza</h2>
+            <p class="text-gray-500 text-sm mb-6">Escribe el folio del reporte. La huella SHA-256 que aparece aquí debe ser idéntica a la impresa al pie del PDF; si no coincide, el documento fue alterado.</p>
+            <form id="f" class="flex gap-2 mb-6"><input id="folio" class="agro-input" inputmode="numeric" placeholder="Folio (ej. 50001)" required>
+                <button class="btn-verde">Verificar</button></form>
+            <div id="res"></div>
+            <p class="text-xs text-gray-400 mt-6">AgroConnecta no otorga créditos: el reporte resume ventas registradas y verificadas en la plataforma.</p>
+        </div>
+    </main>
+    <script>
+    async function verificar(f) {
+        const box = document.getElementById('res');
+        try {
+            const r = await API.get('/reportes/verificar/' + encodeURIComponent(f));
+            box.innerHTML = `<div class="bg-white rounded-2xl border ${r.vigente ? 'border-green-200' : 'border-amber-200'} shadow-sm p-6 space-y-2">
+              <p class="text-lg font-bold ${r.vigente ? 'text-[#2E6B42]' : 'text-amber-700'}">${r.vigente ? '✓ Reporte auténtico y vigente' : 'Reporte auténtico, pero vencido'}</p>
+              <p class="text-sm"><b>Folio:</b> ${r.folio} · <b>Productor:</b> ${UI.esc(r.negocio)}</p>
+              <p class="text-sm"><b>Emitido:</b> ${UI.fechaHora(r.generado_en)} · <b>Vigente hasta:</b> ${UI.fecha(r.valido_hasta)}</p>
+              <p class="text-xs text-gray-500">Huella SHA-256:</p><p class="font-mono text-xs break-all bg-gray-50 rounded-lg p-2">${UI.esc(r.sha256)}</p></div>`;
+        } catch (e) { box.innerHTML = `<p class="bg-red-50 text-red-700 rounded-xl p-4 text-sm">${UI.esc(e.message)}</p>`; }
+    }
+    document.getElementById('f').onsubmit = e => { e.preventDefault(); verificar(document.getElementById('folio').value.trim()); };
+    const q = new URLSearchParams(location.search).get('folio');
+    if (q) { document.getElementById('folio').value = q; verificar(q); }
+    </script>
+    <script src="Barra_Lateral.js"></script>
+</body>
+</html>

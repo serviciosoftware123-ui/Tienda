@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi Tienda - AgroConnecta</title>
+    <link rel="stylesheet" href="css/app.css">
+    <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+    <link rel="icon" href="img/favicon.svg">
+    <script src="js/api.js"></script>
+    <script src="js/municipios.js"></script>
+    <script src="agro_data.js"></script>
+    <script src="vendor/leaflet/leaflet.js"></script>
+    <style>.tab-btn.active { background:#fff; color:#0B2319; font-weight:600; box-shadow:0 1px 3px rgba(0,0,0,.08); }</style>
+</head>
+<body class="bg-[#F8F7F2] flex min-h-screen">
+    <div id="sidebar-root" data-page="tienda"></div>
+
+    <main class="flex-1 p-8 overflow-y-auto min-w-0">
+        <div id="no-vendedor" class="hidden text-center py-24">
+            <p class="text-[#0B2319] font-semibold text-xl mb-2">Esta sección es para vendedores</p>
+            <p class="text-gray-400 text-sm mb-6">Crea una cuenta de vendedor para publicar tus productos y terrenos.</p>
+            <a href="login.html?registro=1" class="btn-verde">Crear cuenta de vendedor</a>
+        </div>
+
+        <div id="vista-tienda" class="hidden">
+            <div class="flex items-start justify-between mb-8 gap-4 flex-wrap">
+                <div>
+                    <h2 class="text-4xl font-serif text-[#0B2319] mb-1" id="nombre-negocio">Mi Tienda</h2>
+                    <p class="text-gray-400 text-sm" id="info-negocio">Cargando…</p>
+                </div>
+                <div class="flex gap-2 flex-wrap">
+                    <button onclick="abrirProducto()" class="btn-verde flex items-center gap-2">＋ Producto</button>
+                    <button onclick="abrirTerreno()" class="btn-borde flex items-center gap-2">＋ Terreno</button>
+                    <a href="Perfil.html" class="btn-borde">Ver mi perfil público</a>
+                </div>
+            </div>
+
+            <div id="aviso-verificacion"></div>
+            <!-- GET /api/tienda/estadisticas -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8" id="stats"></div>
+
+            <div class="bg-[#F3F4F1] rounded-xl p-1 flex gap-1 w-fit mb-6 overflow-x-auto max-w-full">
+                <button class="tab-btn active px-4 py-2 rounded-lg text-sm" data-tab="productos" onclick="setTab('productos')">Productos</button>
+                <button class="tab-btn px-4 py-2 rounded-lg text-sm text-gray-500" data-tab="terrenos" onclick="setTab('terrenos')">Terrenos</button>
+                <button class="tab-btn px-4 py-2 rounded-lg text-sm text-gray-500" data-tab="parcelas" onclick="setTab('parcelas')">Parcelas</button>
+                <button class="tab-btn px-4 py-2 rounded-lg text-sm text-gray-500" data-tab="liquidaciones" onclick="setTab('liquidaciones')">Liquidaciones</button>
+                <button class="tab-btn px-4 py-2 rounded-lg text-sm text-gray-500 whitespace-nowrap" data-tab="premium" onclick="setTab('premium')">★ Premium</button>
+                <button class="tab-btn px-4 py-2 rounded-lg text-sm text-gray-500" data-tab="verificacion" onclick="setTab('verificacion')">Verificación</button>
+                <button class="tab-btn px-4 py-2 rounded-lg text-sm text-gray-500 whitespace-nowrap" data-tab="negocio" onclick="setTab('negocio')">Mi negocio</button>
+            </div>
+
+            <div id="tab-productos"><div id="productos-tienda" class="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6"></div></div>
+            <div id="tab-terrenos" class="hidden"><div id="terrenos-tienda" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div></div>
+            <div id="tab-parcelas" class="hidden"></div>
+            <div id="tab-liquidaciones" class="hidden"></div>
+            <div id="tab-premium" class="hidden"></div>
+            <div id="tab-verificacion" class="hidden max-w-3xl"></div>
+            <div id="tab-negocio" class="hidden max-w-2xl"></div>
+        </div>
+    </main>
+
+    <script>
+        const sesion = API.requireLogin();
+        let categorias = [], productos = [], terrenos = [], negocio = null;
+        let editando = null, imagenes = [];
+
+        // ── Gestor de imágenes (subir desde el celular o pegar un link) ──
+        function gestorImagenes() {
+            return `<div>
+              <label class="agro-label">Fotos <span class="text-gray-400 font-normal">(la primera es la principal · máx. 6)</span></label>
+              <div id="imgs" class="grid grid-cols-3 gap-2 mb-3"></div>
+              <div class="flex gap-2 flex-wrap">
+                <label class="btn-borde cursor-pointer text-xs flex items-center gap-1">📷 Subir foto
+                  <input type="file" accept="image/*" multiple class="hidden" onchange="subirFotos(this)"></label>
+              </div>
+              <div class="flex gap-2 mt-2">
+                <input id="img-link" class="agro-input text-xs" placeholder="…o pega el link de una imagen (https://…)">
+                <button type="button" class="btn-borde text-xs whitespace-nowrap" onclick="agregarLink()" id="btn-link">Agregar</button>
+              </div>
+              <p class="text-[11px] text-gray-400 mt-1">Al pegar un link, el servidor descarga la imagen y la guarda (no depende del sitio original).</p>
+            </div>`;
+        }
+        function pintarImagenes() {
+            const el = document.getElementById('imgs');
+            if (!el) return;
+            el.innerHTML = imagenes.length ? imagenes.map((u, i) => `
+              <div class="relative aspect-square rounded-xl overflow-hidden border ${i === 0 ? 'border-[#2E6B42] border-2' : 'border-gray-200'}">
+                <img src="${UI.img(u)}" class="w-full h-full object-cover" onerror="this.src=UI.FALLBACK_IMG">
+                ${i === 0 ? '<span class="absolute bottom-1 left-1 bg-[#2E6B42] text-white text-[9px] font-bold px-1.5 py-0.5 rounded">PRINCIPAL</span>'
+                  : `<button type="button" onclick="principal(${i})" class="absolute bottom-1 left-1 bg-white/90 text-[10px] px-1.5 rounded">★ Principal</button>`}
+                <button type="button" onclick="quitarImg(${i})" class="absolute top-1 right-1 bg-white/90 w-6 h-6 rounded-full text-xs">✕</button>
+              </div>`).join('') : '<p class="col-span-3 text-xs text-gray-400 bg-gray-50 rounded-xl p-4 text-center">Sin fotos todavía</p>';
+        }
+        async function subirFotos(input) {
+            for (const f of [...input.files].slice(0, 6 - imagenes.length)) {
+                try {
+                    const fd = new FormData(); fd.append('imagen', f);
+                    UI.toast('Subiendo foto…');
+                    imagenes.push((await API.upload('/imagenes/subir', fd)).url);
+                    pintarImagenes();
+                } catch (e) { UI.toast(e.message, 'error'); }
+            }
+            input.value = '';
+        }
+        async function agregarLink() {
+            const inp = document.getElementById('img-link');
+            const url = inp.value.trim();
+            if (!url) return;
+            if (imagenes.length >= 6) return UI.toast('Máximo 6 fotos', 'error');
+            const b = document.getElementById('btn-link'); b.disabled = true; b.textContent = 'Descargando…';
+            try {
+                imagenes.push((await API.post('/imagenes/desde-url', { url })).url);
+                inp.value = ''; pintarImagenes();
+            } catch (e) { UI.toast(e.message, 'error'); }
+            b.disabled = false; b.textContent = 'Agregar';
+        }
+        function principal(i) { imagenes.unshift(imagenes.splice(i, 1)[0]); pintarImagenes(); }
+        function quitarImg(i) { imagenes.splice(i, 1); pintarImagenes(); }
+
+        // ── Tabs ──
+        function setTab(t) {
+            ['productos', 'terrenos', 'parcelas', 'liquidaciones', 'premium', 'verificacion', 'negocio']
+                .forEach(x => document.getElementById('tab-' + x).classList.toggle('hidden', x !== t));
+            document.querySelectorAll('.tab-btn').forEach(b => { b.classList.toggle('active', b.dataset.tab === t); b.classList.toggle('text-gray-500', b.dataset.tab !== t); });
+            if (t === 'negocio') pintarNegocio();
+            if (t === 'parcelas') Plan.parcelas();
+            if (t === 'liquidaciones') Plan.liquidaciones();
+            if (t === 'premium') Plan.premium();
+            if (t === 'verificacion') Plan.verificacion();
+        }
+
+        // ── Estadísticas ──
+        function stat(label, valor, extra = '') {
+            return `<div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm"><p class="text-gray-400 text-xs mb-1">${label}</p>
+              <p class="text-2xl font-bold text-[#0B2319]">${valor}</p>${extra ? `<p class="text-[11px] text-gray-400">${extra}</p>` : ''}</div>`;
+        }
+        async function cargarStats() {
+            const st = await API.get('/tienda/estadisticas');
+            document.getElementById('stats').innerHTML =
+                stat('Ventas entregadas', UI.money0(st.total_vendido)) +
+                stat('Pedidos activos', `<a href="Pedidos.html" class="hover:underline">${st.pedidos_activos}</a>`, `${st.pedidos_totales} en total`) +
+                stat('Productos', st.productos, `${st.activos} activos · ${st.agotados} agotados`) +
+                stat('Reputación', `${Number(negocio.rating || 0).toFixed(1)} ★`, `${negocio.total_calificaciones || 0} reseñas · ${negocio.score_nivel || 'BRONCE'}`);
+        }
+
+        // ── Productos ──
+        function productoCard(p) {
+            const color = p.estado === 'ACTIVO' ? 'text-[#2E6B42]' : p.estado === 'AGOTADO' ? 'text-orange-500' : 'text-gray-400';
+            return `<div class="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm ${p.estado === 'INACTIVO' ? 'opacity-60' : ''}">
+                <div class="relative h-32 sm:h-40 bg-gray-100"><img src="${UI.img(p.imagen)}" class="w-full h-full object-cover" onerror="this.src=UI.FALLBACK_IMG">
+                  <span class="absolute top-3 left-3 bg-white/90 ${color} text-[10px] font-bold px-2 py-1 rounded-md uppercase">${UI.esc(p.estado)}</span></div>
+                <div class="p-4">
+                  <h3 class="font-bold text-[#0B2319] text-sm mb-1 truncate">${UI.esc(p.nombre)}</h3>
+                  <p class="text-xs text-gray-400 mb-1">${UI.esc(p.categoria)} · Stock ${Number(p.stock).toLocaleString('es-MX')} ${UI.esc(p.unidad)}</p>
+                  <p class="text-[11px] text-gray-400 mb-3">Vendidos: ${Number(p.vendidos).toLocaleString('es-MX')} · IVA ${Math.round(Number(p.tasa_iva) * 100)} %${p.parcela_nombre ? ' · 🌱 ' + UI.esc(p.parcela_nombre) : ''}</p>
+                  <div class="flex items-center justify-between">
+                    <p class="text-lg font-bold text-[#2E6B42]">${UI.money0(p.precio)}</p>
+                    <div class="flex gap-1">
+                      <button title="Editar" onclick="abrirProducto('${p.id}')" class="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">✎</button>
+                      ${p.estado === 'INACTIVO'
+                        ? `<button title="Reactivar" onclick="estadoProducto('${p.id}','ACTIVO')" class="p-1.5 rounded-lg hover:bg-green-50 text-[#2E6B42] text-xs font-semibold">Activar</button>`
+                        : `<button title="Desactivar" onclick="estadoProducto('${p.id}','INACTIVO')" class="p-1.5 rounded-lg hover:bg-red-50 text-red-400">🗑</button>`}
+                    </div>
+                  </div>
+                </div></div>`;
+        }
+        async function cargarProductos() {
+            productos = await API.get('/tienda/productos');
+            document.getElementById('productos-tienda').innerHTML = productos.length ? productos.map(productoCard).join('')
+                : `<div class="col-span-full text-center py-16"><p class="font-semibold text-[#0B2319] mb-1">Aún no publicas productos</p>
+                   <button class="btn-verde mt-3" onclick="abrirProducto()">Publicar mi primer producto</button></div>`;
+        }
+
+        function abrirProducto(id = null) {
+            editando = id;
+            const p = id ? productos.find(x => x.id === id) : null;
+            imagenes = p ? [...(p.imagenes || [])] : [];
+            const mun = Object.keys(MUNICIPIOS).find(m => p && p.ubicacion && p.ubicacion.startsWith(m.replace(' (Villahermosa)', '')))
+                || Object.keys(MUNICIPIOS).find(m => negocio.ubicacion && negocio.ubicacion.startsWith(m.replace(' (Villahermosa)', ''))) || 'Centro (Villahermosa)';
+            UI.modal.open(`
+              <div class="flex items-center justify-between p-6 border-b border-gray-100">
+                <h3 class="font-bold text-[#0B2319] text-lg">${p ? 'Editar' : 'Nuevo'} producto</h3>
+                <button onclick="UI.modal.close()" class="text-gray-400">✕</button></div>
+              <form class="p-6 space-y-4" onsubmit="guardarProducto(event)">
+                <div><label class="agro-label">Nombre</label><input id="p-nombre" class="agro-input" required maxlength="200" value="${UI.esc(p ? p.nombre : '')}"></div>
+                <div><label class="agro-label">Descripción</label><textarea id="p-desc" rows="3" class="agro-input" maxlength="5000">${UI.esc(p ? p.descripcion || '' : '')}</textarea></div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div><label class="agro-label">Precio (MXN)</label><input id="p-precio" type="number" min="0.01" step="0.01" class="agro-input" required value="${p ? p.precio : ''}"></div>
+                  <div><label class="agro-label">Stock</label><input id="p-stock" type="number" min="0" step="0.01" class="agro-input" required value="${p ? p.stock : ''}"></div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div><label class="agro-label">Unidad</label><input id="p-unidad" list="unidades" class="agro-input" required maxlength="30" value="${UI.esc(p ? p.unidad : 'kg')}">
+                    <datalist id="unidades"><option>kg</option><option>tonelada</option><option>caja</option><option>pieza</option><option>unidad</option><option>kit</option><option>litro</option><option>bulto</option></datalist></div>
+                  <div><label class="agro-label">Categoría</label><select id="p-cat" class="agro-input" required onchange="Plan.campoParcela()">
+                    ${categorias.filter(c => c.tipo !== 'TERRENO').map(c => `<option value="${c.id_categoria}" ${p && p.id_categoria === c.id_categoria ? 'selected' : ''}>${UI.esc(c.nombre)}</option>`).join('')}</select></div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div><label class="agro-label">Municipio</label><select id="p-mun" class="agro-input">${opcionesMunicipios(mun)}</select></div>
+                  <div><label class="agro-label">Estado</label><select id="p-estado" class="agro-input">
+                    ${['ACTIVO', 'AGOTADO', 'INACTIVO'].map(e => `<option ${p && p.estado === e ? 'selected' : ''}>${e}</option>`).join('')}</select></div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div id="campo-parcela"><label class="agro-label">Parcela de origen</label><select id="p-parcela" class="agro-input"></select></div>
+                  <div><label class="agro-label">IVA</label><select id="p-iva" class="agro-input">
+                    <option value="" ${!p || p.tasa_iva_producto === null || p.tasa_iva_producto === undefined ? 'selected' : ''}>Según la categoría</option>
+                    <option value="0" ${p && p.tasa_iva_producto !== null && Number(p.tasa_iva_producto) === 0 ? 'selected' : ''}>0 % (art. 2-A LIVA)</option>
+                    <option value="0.16" ${p && Number(p.tasa_iva_producto) === 0.16 ? 'selected' : ''}>16 %</option></select></div>
+                </div>
+                <div><label class="agro-label">Palabras clave <span class="text-gray-400 font-normal">(separadas por coma)</span></label>
+                  <input id="p-tags" class="agro-input" value="${UI.esc(p && p.tags ? p.tags.join(', ') : '')}" placeholder="platano, macho, tabasco"></div>
+                ${gestorImagenes()}
+                <div class="flex gap-3 pt-2">
+                  <button type="button" onclick="UI.modal.close()" class="btn-borde flex-1">Cancelar</button>
+                  <button class="btn-verde flex-1" id="btn-guardar">Guardar producto</button>
+                </div>
+              </form>`);
+            pintarImagenes();
+            Plan.campoParcela(p ? p.id_parcela : null);
+        }
+
+        async function guardarProducto(e) {
+            e.preventDefault();
+            const mun = document.getElementById('p-mun').value;
+            const body = {
+                nombre: document.getElementById('p-nombre').value, descripcion: document.getElementById('p-desc').value,
+                precio: document.getElementById('p-precio').value, stock: document.getElementById('p-stock').value,
+                unidad_medida: document.getElementById('p-unidad').value, id_categoria: document.getElementById('p-cat').value,
+                estado: document.getElementById('p-estado').value, tags: document.getElementById('p-tags').value,
+                ubicacion: municipioTexto(mun), lat: MUNICIPIOS[mun][0], lng: MUNICIPIOS[mun][1], imagenes,
+                tasa_iva: document.getElementById('p-iva').value,
+                id_parcela: document.getElementById('campo-parcela').classList.contains('invisible') ? null : (document.getElementById('p-parcela').value || null),
+            };
+            const b = document.getElementById('btn-guardar'); b.disabled = true; b.textContent = 'Guardando…';
+            try {
+                if (editando) await API.put('/productos/' + editando, body); else await API.post('/productos', body);
+                UI.modal.close(); UI.toast(editando ? 'Producto actualizado' : 'Producto publicado');
+                await cargarProductos(); cargarStats();
+            } catch (err) { UI.toast(err.message, 'error'); b.disabled = false; b.textContent = 'Guardar producto'; }
+        }
+
+        async function estadoProducto(id, estado) {
+            if (estado === 'INACTIVO' && !confirm('¿Desactivar este producto? Ya no aparecerá en el catálogo (se puede reactivar).')) return;
+            try { await API.put(`/productos/${id}/estado`, { estado }); await cargarProductos(); cargarStats(); }
+            catch (e) { UI.toast(e.message, 'error'); }
+        }
+
+        // ── Terrenos ──
+        async function cargarTerrenos() {
+            terrenos = await API.get('/tienda/terrenos');
+            document.getElementById('terrenos-tienda').innerHTML = terrenos.length ? terrenos.map(t => `
+              <div class="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm ${t.estado === 'INACTIVO' ? 'opacity-60' : ''}">
+                <div class="relative h-40"><img src="${UI.img(t.imagen)}" class="w-full h-full object-cover" onerror="this.src=UI.FALLBACK_IMG">
+                  <span class="absolute top-3 left-3 bg-white/90 text-[10px] font-bold px-2 py-1 rounded-md">${UI.esc(t.operacion)} · ${UI.esc(t.estado)}</span></div>
+                <div class="p-4"><p class="font-bold text-sm text-[#0B2319]">${UI.esc(t.titulo)}</p>
+                  <p class="text-xs text-gray-400">${UI.esc(t.ubicacion)} · ${t.superficie} ha</p>
+                  <div class="flex items-center justify-between mt-2"><p class="font-bold text-[#2E6B42]">${UI.money0(t.precio)}</p>
+                  <button class="btn-borde !py-1.5 text-xs" onclick="abrirTerreno('${t.id}')">Editar</button></div></div>
+              </div>`).join('')
+              : `<div class="col-span-full text-center py-16"><p class="font-semibold text-[#0B2319] mb-1">No tienes terrenos publicados</p>
+                 <button class="btn-verde mt-3" onclick="abrirTerreno()">Publicar un terreno</button></div>`;
+        }
+
+        let mapaPick = null, marcador = null;
+        function abrirTerreno(id = null) {
+            editando = id;
+            const t = id ? terrenos.find(x => x.id === id) : null;
+            imagenes = t ? [...(t.imagenes || [])] : [];
+            const lat = t ? t.lat : (negocio.lat || 17.9869), lng = t ? t.lng : (negocio.lng || -92.9303);
+            UI.modal.open(`
+              <div class="flex items-center justify-between p-6 border-b border-gray-100">
+                <h3 class="font-bold text-[#0B2319] text-lg">${t ? 'Editar' : 'Nuevo'} terreno</h3>
+                <button onclick="UI.modal.close()" class="text-gray-400">✕</button></div>
+              <form class="p-6 space-y-4" onsubmit="guardarTerreno(event)">
+                <div><label class="agro-label">Título</label><input id="t-titulo" class="agro-input" required maxlength="300" value="${UI.esc(t ? t.titulo : '')}"></div>
+                <div><label class="agro-label">Descripción</label><textarea id="t-desc" rows="3" class="agro-input">${UI.esc(t ? t.descripcion || '' : '')}</textarea></div>
+                <div class="grid grid-cols-3 gap-3">
+                  <div><label class="agro-label">Operación</label><select id="t-op" class="agro-input">
+                    <option value="VENTA" ${t && t.operacion === 'VENTA' ? 'selected' : ''}>Venta</option>
+                    <option value="ARRENDAMIENTO" ${t && t.operacion === 'ARRENDAMIENTO' ? 'selected' : ''}>Renta</option></select></div>
+                  <div><label class="agro-label">Hectáreas</label><input id="t-sup" type="number" min="0.01" step="0.01" class="agro-input" required value="${t ? t.superficie : ''}"></div>
+                  <div><label class="agro-label">Precio</label><input id="t-precio" type="number" min="0.01" step="0.01" class="agro-input" required value="${t ? t.precio : ''}"></div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div><label class="agro-label">Municipio</label><select id="t-mun" class="agro-input" onchange="centrarMunicipio(this.value)">${opcionesMunicipios(
+                    Object.keys(MUNICIPIOS).find(m => t && t.ubicacion.startsWith(m.replace(' (Villahermosa)', ''))) || 'Centro (Villahermosa)')}</select></div>
+                  <div><label class="agro-label">Estado</label><select id="t-estado" class="agro-input">
+                    ${['DISPONIBLE', 'VENDIDO', 'ARRENDADO', 'INACTIVO'].map(e => `<option ${t && t.estado === e ? 'selected' : ''}>${e}</option>`).join('')}</select></div>
+                </div>
+                <div><label class="agro-label">Ubicación exacta <span class="text-gray-400 font-normal">(toca el mapa para mover el punto)</span></label>
+                  <div id="pick" class="w-full h-56 rounded-xl overflow-hidden border border-gray-200"></div>
+                  <p class="text-[11px] text-gray-400 mt-1" id="coords"></p></div>
+                ${gestorImagenes()}
+                <div class="flex gap-3 pt-2"><button type="button" onclick="UI.modal.close()" class="btn-borde flex-1">Cancelar</button>
+                  <button class="btn-verde flex-1" id="btn-guardar">Guardar terreno</button></div>
+              </form>`, { ancho: 'max-w-xl' });
+            pintarImagenes();
+            setTimeout(() => {
+                mapaPick = L.map('pick').setView([lat, lng], 11);
+                L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(mapaPick);
+                marcador = L.marker([lat, lng], { draggable: true }).addTo(mapaPick);
+                const upd = () => { const p = marcador.getLatLng(); document.getElementById('coords').textContent = `Lat ${p.lat.toFixed(5)}, Lng ${p.lng.toFixed(5)}`; };
+                marcador.on('dragend', upd);
+                mapaPick.on('click', ev => { marcador.setLatLng(ev.latlng); upd(); });
+                upd();
+            }, 60);
+        }
+        function centrarMunicipio(m) {
+            if (!mapaPick) return;
+            mapaPick.setView(MUNICIPIOS[m], 12); marcador.setLatLng(MUNICIPIOS[m]);
+            document.getElementById('coords').textContent = `Lat ${MUNICIPIOS[m][0]}, Lng ${MUNICIPIOS[m][1]}`;
+        }
+        async function guardarTerreno(e) {
+            e.preventDefault();
+            const p = marcador.getLatLng();
+            const body = {
+                titulo: document.getElementById('t-titulo').value, descripcion: document.getElementById('t-desc').value,
+                tipo_operacion: document.getElementById('t-op').value, superficie_ha: document.getElementById('t-sup').value,
+                precio: document.getElementById('t-precio').value, estado: document.getElementById('t-estado').value,
+                ubicacion: municipioTexto(document.getElementById('t-mun').value), lat: p.lat, lng: p.lng, imagenes,
+            };
+            const b = document.getElementById('btn-guardar'); b.disabled = true; b.textContent = 'Guardando…';
+            try {
+                if (editando) await API.put('/terrenos/' + editando, body); else await API.post('/terrenos', body);
+                UI.modal.close(); UI.toast('Terreno guardado'); cargarTerrenos(); cargarStats();
+            } catch (err) { UI.toast(err.message, 'error'); b.disabled = false; b.textContent = 'Guardar terreno'; }
+        }
+
+        // ── Mi negocio ──
+        function pintarNegocio() {
+            const mun = Object.keys(MUNICIPIOS).find(m => negocio.ubicacion && negocio.ubicacion.startsWith(m.replace(' (Villahermosa)', ''))) || 'Centro (Villahermosa)';
+            document.getElementById('tab-negocio').innerHTML = `
+              <form class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4" onsubmit="guardarNegocio(event)">
+                <div class="flex items-center gap-2">${negocio.verificado
+                  ? '<span class="bg-green-50 text-[#2E6B42] text-xs font-bold px-3 py-1.5 rounded-full">✔ Vendedor verificado por AgroConnecta</span>'
+                  : '<span class="bg-yellow-50 text-yellow-700 text-xs font-bold px-3 py-1.5 rounded-full">Pendiente de verificación por el administrador</span>'}</div>
+                <div><label class="agro-label">Nombre del negocio</label><input id="n-nombre" class="agro-input" value="${UI.esc(negocio.nombre_negocio)}" maxlength="200"></div>
+                <div><label class="agro-label">Descripción</label><textarea id="n-desc" rows="3" class="agro-input">${UI.esc(negocio.descripcion || '')}</textarea></div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div><label class="agro-label">Municipio</label><select id="n-mun" class="agro-input">${opcionesMunicipios(mun)}</select></div>
+                  <div><label class="agro-label">RFC <span class="text-gray-400 font-normal">(cifrado)</span></label><input id="n-rfc" class="agro-input uppercase" value="${UI.esc(negocio.rfc || '')}" maxlength="13"></div>
+                </div>
+                <button class="btn-verde">Guardar cambios</button>
+              </form>`;
+        }
+        async function guardarNegocio(e) {
+            e.preventDefault();
+            const mun = document.getElementById('n-mun').value;
+            try {
+                await API.put('/tienda/mi-tienda', {
+                    nombre_negocio: document.getElementById('n-nombre').value, descripcion: document.getElementById('n-desc').value,
+                    rfc: document.getElementById('n-rfc').value || undefined,
+                    ubicacion: municipioTexto(mun), lat: MUNICIPIOS[mun][0], lng: MUNICIPIOS[mun][1],
+                });
+                UI.toast('Datos del negocio guardados'); await cargarNegocio(); pintarNegocio();
+            } catch (err) { UI.toast(err.message, 'error'); }
+        }
+        async function cargarNegocio() {
+            negocio = await API.get('/tienda/mi-tienda');
+            Plan.avisoVerificacion(negocio);
+            document.getElementById('nombre-negocio').textContent = negocio.nombre_negocio;
+            document.getElementById('info-negocio').innerHTML = `${negocio.verificado ? '✔ Verificado · ' : ''}📍 ${UI.esc(negocio.ubicacion || 'Sin ubicación')}`;
+        }
+
+        (async () => {
+            if (!sesion) return;
+            if (sesion.tipo_usuario !== 'VENDEDOR') { document.getElementById('no-vendedor').classList.remove('hidden'); return; }
+            document.getElementById('vista-tienda').classList.remove('hidden');
+            try {
+                categorias = await AGRO_DB.getCategorias();
+                await cargarNegocio();
+                await Promise.all([cargarStats(), cargarProductos(), cargarTerrenos()]);
+                const tab = new URLSearchParams(location.search).get('tab');
+                if (tab) setTab(tab);
+                Plan.regresoDePago();
+            } catch (e) { UI.toast(e.message, 'error'); }
+        })();
+    </script>
+    <script src="js/tienda-plan.js"></script>
+    <script src="Barra_Lateral.js"></script>
+</body>
+</html>

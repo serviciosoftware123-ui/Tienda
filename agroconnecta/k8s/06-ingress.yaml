@@ -1,0 +1,26 @@
+# Ingress: publica la página con tu dominio y HTTPS
+#  • Local: agrega "127.0.0.1 agroconnecta.local" a /etc/hosts
+#  • Nube:  cambia el host por tu dominio y activa cert-manager para el certificado TLS
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: agroconnecta
+  namespace: agroconnecta
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "8m"
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  # tls:
+  #   - hosts: [agroconnecta.mx]
+  #     secretName: agroconnecta-tls
+  rules:
+    - host: agroconnecta.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: agroconnecta-web
+                port: { number: 80 }

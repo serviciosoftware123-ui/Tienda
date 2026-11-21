@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Producto - AgroConnecta</title>
+<link rel="stylesheet" href="css/app.css">
+<link rel="icon" href="img/favicon.svg">
+<script src="js/api.js"></script>
+<script src="agro_data.js"></script>
+<style>
+  .qty-btn { width:40px;height:40px;border-radius:10px;border:1px solid #e5e7eb;background:white;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:600;color:#0B2319; }
+  .qty-btn:hover { background:#f3f4f6; }
+  #map { width:100%;height:260px;border-radius:16px;overflow:hidden; }
+</style>
+</head>
+<body class="bg-[#F8F7F2] flex min-h-screen">
+<div id="sidebar-root" data-page="catalogo"></div>
+
+<main class="flex-1 overflow-y-auto min-w-0 p-8">
+  <a href="Catalogo.html" class="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-[#2E6B42] transition-colors font-medium mb-4">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    Volver al catálogo
+  </a>
+  <div id="producto-content" class="max-w-6xl">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-10"><div class="skeleton aspect-square"></div><div class="space-y-4"><div class="skeleton h-10"></div><div class="skeleton h-40"></div></div></div>
+  </div>
+</main>
+
+<script>
+let currentQty = 1;
+let producto = null;
+
+function render(p) {
+  document.title = `${p.nombre} - AgroConnecta`;
+  const s = API.getSession();
+  const puedeComprar = !s || s.tipo_usuario === 'COMPRADOR';
+  const esDueno = s && s.tipo_usuario === 'VENDEDOR' && s.id_rol === p.id_vendedor;
+  const califs = p.calificaciones || [];
+  const imgs = (p.imagenes && p.imagenes.length ? p.imagenes.map(i => i.url) : [p.imagen]).filter(Boolean);
+  const disponible = p.estado === 'ACTIVO' && p.stock > 0;
+
+  document.getElementById('producto-content').innerHTML = `
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-10 mb-10">
+    <div>
+      <div class="bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm aspect-[4/3] lg:aspect-square">
+        <img id="img-principal" src="${UI.img(imgs[0])}" alt="${UI.esc(p.nombre)}" class="w-full h-full object-cover" onerror="this.src=UI.FALLBACK_IMG">
+      </div>
+      ${imgs.length > 1 ? `<div class="flex gap-2 mt-3 overflow-x-auto">${imgs.map(u => `
+        <button onclick="document.getElementById('img-principal').src='${UI.esc(u)}'" class="w-20 h-20 rounded-xl overflow-hidden border border-gray-200 flex-shrink-0">
+          <img src="${UI.esc(u)}" class="w-full h-full object-cover" alt=""></button>`).join('')}</div>` : ''}
+    </div>
+
+    <div class="flex flex-col gap-5">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="bg-[#F1EFE7] text-[#2E6B42] text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-wider">${UI.esc(p.categoria)}</span>
+        <span class="${disponible ? 'bg-green-50 text-[#2E6B42]' : 'bg-orange-50 text-orange-600'} text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-wider">${disponible ? 'Disponible' : UI.esc(p.estado)}</span>
+      </div>
+      <h1 class="text-4xl font-serif text-[#0B2319] leading-tight">${UI.esc(p.nombre)}</h1>
+
+      <div class="flex items-center gap-3 flex-wrap">
+        <div class="w-9 h-9 rounded-full bg-[#2E6B42] flex items-center justify-center text-white text-sm font-bold">${UI.esc((p.vendedor_nombre || '?').substring(0, 2).toUpperCase())}</div>
+        <div><p class="text-xs text-gray-400">Vendido por</p>
+          <a href="Perfil.html?vendedor=${UI.esc(p.id_vendedor)}" class="font-semibold text-[#0B2319] text-sm hover:underline">${UI.esc(p.vendedor_nombre)}</a>
+          <div class="flex flex-wrap gap-1 mt-1">${UI.insignias(p)}</div></div>
+        <div class="ml-auto flex items-center gap-1 bg-[#F3F9F6] px-3 py-1.5 rounded-xl">
+          ${UI.stars(p.vendedor_rating, 'w-3.5 h-3.5')}
+          <span class="text-xs font-bold text-[#2E6B42] ml-1">${Number(p.vendedor_rating || 0).toFixed(1)}</span>
+          <span class="text-xs text-gray-400">(${p.vendedor_ventas || 0} ventas)</span>
+        </div>
+      </div>
+
+      <p class="text-sm text-gray-500">📍 Producto en <strong class="text-[#0B2319]">${UI.esc(p.ubicacion || p.vendedor_ubicacion || '—')}</strong></p>
+      ${p.parcela_nombre ? `<div class="flex items-center gap-3 bg-[#F3F9F6] border border-[#d7ebdf] rounded-2xl p-3 text-sm">
+        <span class="text-2xl">🌱</span><div><p class="font-semibold text-[#0B2319]">Sale de la parcela «${UI.esc(p.parcela_nombre)}»</p>
+        <p class="text-xs text-gray-500">${UI.esc(p.parcela_ha)} ha de ${UI.esc(p.parcela_cultivo)} · registrada y revisada por AgroConnecta</p></div></div>` : ''}
+      ${p.vendedor_perfil === 'ACOPIADOR' ? `<p class="text-xs text-orange-700 bg-orange-50 rounded-xl p-3">Este vendedor es <b>acopiador</b>: reúne producto de varios productores. Si buscas comprar directo del campo, usa el filtro «Directo del productor».</p>` : ''}
+
+      <div class="bg-white rounded-2xl p-5 border border-gray-100">
+        <p class="text-5xl font-bold text-[#2E6B42] leading-none">${UI.money0(p.precio)}</p>
+        <p class="text-gray-400 text-sm mt-1">por ${UI.esc(p.unidad)} · ${Number(p.tasa_iva) === 0 ? 'IVA tasa 0 % (producto agrícola, art. 2-A LIVA)' : 'más IVA 16 % al pagar'}</p>
+        <p class="text-sm font-semibold text-[#0B2319] mt-3">Stock disponible: ${Number(p.stock).toLocaleString('es-MX')} ${UI.esc(p.unidad)}</p>
+      </div>
+
+      ${p.descripcion ? `<div><h3 class="font-bold text-[#0B2319] mb-2">Descripción</h3>
+        <p class="text-gray-600 text-sm leading-relaxed whitespace-pre-line">${UI.esc(p.descripcion)}</p></div>` : ''}
+
+      ${esDueno ? `<a href="Tienda.html" class="btn-borde text-center">Este producto es tuyo · Editar en Mi Tienda</a>`
+        : !puedeComprar ? `<p class="text-sm text-gray-500 bg-gray-50 rounded-xl p-4">Inicia sesión con una cuenta de comprador para comprar.</p>`
+        : disponible ? `
+      <p class="text-xs text-gray-500 flex items-start gap-2"><span>🔒</span><span><b>Pago protegido:</b> tu dinero queda en custodia y se le entrega al vendedor 48 h después de que confirmes que recibiste tu pedido. Si llega mal, te lo reembolsamos.</span></p>
+      <div class="flex items-center gap-3 pt-1">
+        <div class="flex items-center gap-1 bg-white border border-gray-200 rounded-xl p-1">
+          <button class="qty-btn" onclick="changeQty(-1)">−</button>
+          <input id="qty-display" type="number" min="1" max="${p.stock}" value="1" inputmode="numeric"
+                 class="w-16 text-center font-bold text-[#0B2319] text-lg outline-none" onchange="setQty(this.value)">
+          <button class="qty-btn" onclick="changeQty(1)">+</button>
+        </div>
+        <button class="flex-1 bg-[#2E6B42] text-white py-3 px-4 rounded-xl font-semibold hover:bg-[#245534] text-sm" onclick="addCart()">Agregar al carrito</button>
+      </div>` : `<p class="text-sm text-orange-600 bg-orange-50 rounded-xl p-4">Producto sin existencias por ahora.</p>`}
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+      <h3 class="font-bold text-[#0B2319] mb-4">Ubicación <span class="text-sm font-normal text-gray-400">${UI.esc(p.ubicacion || '')}</span></h3>
+      <div id="map" class="bg-[#F1EFE7] flex items-center justify-center text-gray-400 text-sm">${p.lat ? '' : 'Sin ubicación registrada'}</div>
+    </div>
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+      <h3 class="font-bold text-[#0B2319] mb-4">Reseñas del vendedor ${califs.length ? `<span class="text-gray-400 font-normal text-sm">(${califs.length})</span>` : ''}</h3>
+      ${califs.length === 0 ? '<p class="text-gray-400 text-sm py-6 text-center">Este vendedor aún no tiene reseñas.</p>' :
+        califs.map(c => `<div class="border-b border-gray-50 py-3 last:border-0">
+          <div class="flex items-center justify-between mb-1"><p class="font-semibold text-[#0B2319] text-sm">${UI.esc(c.usuario)}</p>
+          <div class="flex gap-0.5">${UI.stars(c.puntuacion, 'w-3.5 h-3.5')}</div></div>
+          <p class="text-xs text-gray-400 mb-1">${UI.fecha(c.fecha)} · ${UI.esc(c.productos || '')}</p>
+          ${c.comentario ? `<p class="text-sm text-gray-600">${UI.esc(c.comentario)}</p>` : ''}</div>`).join('')}
+      <div class="flex flex-wrap gap-2 mt-4">
+        <a href="Perfil.html?vendedor=${UI.esc(p.id_vendedor)}" class="btn-verde !py-2 text-xs">Ver perfil y opiniones</a>
+        <a href="Catalogo.html?vendedor=${UI.esc(p.id_vendedor)}&nombre=${encodeURIComponent(p.vendedor_nombre || '')}" class="btn-borde !py-2 text-xs">Más productos de este vendedor</a></div>
+    </div>
+  </div>`;
+
+  if (p.lat && p.lng) {
+    const d = 0.12;
+    document.getElementById('map').innerHTML = `<iframe title="Mapa" loading="lazy" style="width:100%;height:100%;border:0"
+      src="https://www.openstreetmap.org/export/embed.html?bbox=${p.lng - d},${p.lat - d * 0.7},${p.lng + d},${p.lat + d * 0.7}&layer=mapnik&marker=${p.lat},${p.lng}"></iframe>`;
+  }
+}
+
+function setQty(v) {
+  currentQty = Math.max(1, Math.min(Number(v) || 1, producto.stock));
+  document.getElementById('qty-display').value = currentQty;
+}
+function changeQty(d) { setQty(currentQty + d); }
+function addCart() {
+  AGRO_DB.addToCart(producto, currentQty);
+  UI.toast(`✓ ${currentQty} ${producto.unidad} agregado(s) al carrito`);
+}
+
+(async () => {
+  const id = new URLSearchParams(location.search).get('id');
+  try {
+    producto = await AGRO_DB.getProducto(id);
+    render(producto);
+  } catch (e) {
+    document.getElementById('producto-content').innerHTML = `<div class="text-center py-20"><p class="text-gray-400 mb-4">${UI.esc(e.message)}</p>
+      <a href="Catalogo.html" class="text-[#2E6B42] font-semibold hover:underline">Volver al catálogo</a></div>`;
+  }
+})();
+</script>
+<script src="Barra_Lateral.js"></script>
+</body>
+</html>

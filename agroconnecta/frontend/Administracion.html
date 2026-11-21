@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administración - AgroConnecta</title>
+    <link rel="stylesheet" href="css/app.css">
+    <link rel="icon" href="img/favicon.svg">
+    <script src="js/api.js"></script>
+    <script src="agro_data.js"></script>
+    <style>.tab-btn.active { background:#fff; color:#0B2319; font-weight:600; box-shadow:0 1px 3px rgba(0,0,0,.08); }</style>
+</head>
+<body class="bg-[#F8F7F2] flex min-h-screen">
+    <div id="sidebar-root" data-page="administracion"></div>
+
+    <main class="flex-1 p-8 overflow-y-auto min-w-0">
+        <header class="mb-8">
+            <h2 class="text-4xl font-serif text-[#0B2319] mb-1">Panel de Administración</h2>
+            <p class="text-gray-400 text-sm">Gestión general del marketplace</p>
+        </header>
+        <div id="sin-permiso" class="hidden text-center py-24 text-gray-500">Esta sección es solo para administradores.</div>
+
+        <div id="vista-admin" class="hidden">
+            <!-- GET /api/admin/resumen -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-10" id="stats"></div>
+            <div id="pendientes" class="mb-6"></div>
+
+            <div class="bg-[#F3F4F1] rounded-xl p-1 flex gap-1 w-fit mb-8 overflow-x-auto max-w-full">
+                <button class="tab-btn active px-4 py-2 rounded-lg text-sm whitespace-nowrap" data-tab="plan" onclick="setTab('plan')">Indicadores</button>
+                <button class="tab-btn px-4 py-2 rounded-lg text-sm text-gray-500 whitespace-nowrap" data-tab="verificaciones" onclick="setTab('verificaciones')">Verificaciones</button>
+                <button class="tab-btn px-4 py-2 rounded-lg text-sm text-gray-500 whitespace-nowrap" data-tab="alertas" onclick="setTab('alertas')">Alertas</button>
+                <button class="tab-btn px-4 py-2 rounded-lg text-sm text-gray-500 whitespace-nowrap" data-tab="custodia" onclick="setTab('custodia')">Custodia y SPEI</button>
+                <button class="tab-btn px-4 py-2 rounded-lg text-sm text-gray-500 whitespace-nowrap" data-tab="usuarios" onclick="setTab('usuarios')">Usuarios</button>
+                <button class="tab-btn px-4 py-2 rounded-lg text-sm text-gray-500 whitespace-nowrap" data-tab="categorias" onclick="setTab('categorias')">Categorías</button>
+                <button class="tab-btn px-4 py-2 rounded-lg text-sm text-gray-500 whitespace-nowrap" data-tab="devoluciones" onclick="setTab('devoluciones')">Devoluciones</button>
+                <button class="tab-btn px-4 py-2 rounded-lg text-sm text-gray-500 whitespace-nowrap" data-tab="financiamiento" onclick="setTab('financiamiento')">Financiamiento</button>
+                <button class="tab-btn px-4 py-2 rounded-lg text-sm text-gray-500 whitespace-nowrap" data-tab="publicidad" onclick="setTab('publicidad')">Publicidad</button>
+                <button class="tab-btn px-4 py-2 rounded-lg text-sm text-gray-500 whitespace-nowrap" data-tab="logistica" onclick="setTab('logistica')">Transportistas</button>
+                <button class="tab-btn px-4 py-2 rounded-lg text-sm text-gray-500 whitespace-nowrap" data-tab="membresias" onclick="setTab('membresias')">Membresías</button>
+                <button class="tab-btn px-4 py-2 rounded-lg text-sm text-gray-500 whitespace-nowrap" data-tab="parametros" onclick="setTab('parametros')">Parámetros</button>
+                <button class="tab-btn px-4 py-2 rounded-lg text-sm text-gray-500 whitespace-nowrap" data-tab="seguridad" onclick="setTab('seguridad')">Seguridad</button>
+            </div>
+
+            <!-- v3.0 (plan de negocio): js/admin-plan.js -->
+            <section id="tab-plan"></section>
+            <section id="tab-verificaciones" class="hidden"></section>
+            <section id="tab-alertas" class="hidden"></section>
+            <section id="tab-custodia" class="hidden"></section>
+            <section id="tab-publicidad" class="hidden"></section>
+            <section id="tab-logistica" class="hidden"></section>
+            <section id="tab-membresias" class="hidden"></section>
+            <section id="tab-parametros" class="hidden"></section>
+
+            <!-- USUARIOS: GET /api/admin/usuarios · PUT /usuarios/:id/estado · PUT /usuarios/:id/desbloquear -->
+            <section id="tab-usuarios" class="hidden">
+                <div class="flex flex-wrap gap-3 mb-4">
+                    <input id="u-q" type="search" class="agro-input max-w-xs" placeholder="Buscar nombre, correo o negocio">
+                    <select id="u-tipo" class="agro-input w-auto"><option value="">Todos</option><option>COMPRADOR</option><option>VENDEDOR</option><option>ADMINISTRADOR</option></select>
+                    <button class="btn-borde ml-auto" onclick="nuevoAdmin()">＋ Administrador</button>
+                </div>
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto">
+                    <table class="w-full text-sm min-w-[760px]">
+                        <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider"><tr>
+                            <th class="px-5 py-3 text-left">Nombre</th><th class="px-5 py-3 text-left">Correo</th><th class="px-5 py-3 text-left">Tipo</th>
+                            <th class="px-5 py-3 text-left">Estado</th><th class="px-5 py-3 text-left">Score</th><th class="px-5 py-3 text-left">Registro</th><th class="px-5 py-3"></th></tr></thead>
+                        <tbody id="usuarios-tbody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- CATEGORÍAS: GET/POST/PUT /api/categorias · PUT /api/categorias/:id/estado (soft delete) -->
+            <section id="tab-categorias" class="hidden">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="font-bold text-[#0B2319]" id="cat-titulo">Categorías</h3>
+                    <button onclick="modalCategoria()" class="btn-verde">＋ Nueva</button>
+                </div>
+                <div id="categorias-lista" class="space-y-2"></div>
+            </section>
+
+            <!-- DEVOLUCIONES: GET /api/devoluciones · PUT /api/devoluciones/:id/estado -->
+            <section id="tab-devoluciones" class="hidden"><div id="devoluciones-lista" class="space-y-4"></div></section>
+
+            <!-- FINANCIAMIENTO: GET /api/financiamiento · PUT /:id/abono · PUT /:id/estado -->
+            <section id="tab-financiamiento" class="hidden">
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto">
+                    <table class="w-full text-sm min-w-[760px]">
+                        <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider"><tr>
+                            <th class="px-5 py-3 text-left">Comprador</th><th class="px-5 py-3 text-left">Pedido</th><th class="px-5 py-3 text-left">Monto</th>
+                            <th class="px-5 py-3 text-left">Plazos</th><th class="px-5 py-3 text-left">Estado</th><th class="px-5 py-3 text-left">Inicio</th><th class="px-5 py-3"></th></tr></thead>
+                        <tbody id="financiamiento-tbody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- SEGURIDAD: GET /api/admin/integridad (HMAC + cadena SHA-256) · GET /api/admin/auditoria -->
+            <section id="tab-seguridad" class="hidden space-y-6">
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                    <div class="flex items-center justify-between flex-wrap gap-3 mb-4">
+                        <div><h3 class="font-bold text-[#0B2319]">Verificación de integridad</h3>
+                          <p class="text-xs text-gray-400">Recalcula los HMAC-SHA256 de pedidos y pagos, y recorre la cadena de hashes de la bitácora.</p></div>
+                        <button class="btn-verde" onclick="verificar()">Verificar ahora</button>
+                    </div>
+                    <div id="integridad" class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3"></div>
+                </div>
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                    <div class="flex items-center justify-between flex-wrap gap-3 mb-4">
+                        <h3 class="font-bold text-[#0B2319]">Bitácora de cambios (LOG_CAMBIOS)</h3>
+                        <select id="log-tabla" class="agro-input w-auto" onchange="cargarAuditoria()">
+                            <option value="">Todas las tablas</option>
+                        </select>
+                    </div>
+                    <div id="auditoria" class="space-y-2 text-xs"></div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <script>
+        const sesion = API.requireLogin();
+        const fmt = n => UI.money0(n);
+
+        function stat(label, v) {
+            return `<div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm"><p class="text-gray-400 text-xs mb-1">${label}</p>
+              <p class="text-2xl font-bold text-[#0B2319]">${v}</p></div>`;
+        }
+        async function cargarStats() {
+            const d = await API.get('/admin/resumen');
+            document.getElementById('stats').innerHTML =
+                stat('Ventas entregadas', fmt(d.ventas_totales)) +
+                stat('Comisiones ganadas', fmt(d.comisiones)) +
+                stat('En custodia', fmt(d.en_custodia)) +
+                stat('Vendedores', `${d.total_vendedores}<span class="text-xs text-gray-400 font-normal"> · ${d.premium_activos} ★</span>`) +
+                stat('Pedidos', d.total_pedidos);
+            const pend = [
+                d.verificaciones_pendientes && [`${d.verificaciones_pendientes} productor(es) esperan verificación`, 'verificaciones'],
+                d.alertas_abiertas && [`${d.alertas_abiertas} alerta(s) abiertas`, 'alertas'],
+                d.devoluciones_pendientes && [`${d.devoluciones_pendientes} devolución(es)/disputa(s) por resolver`, 'devoluciones'],
+            ].filter(Boolean);
+            document.getElementById('pendientes').innerHTML = pend.length ? `<div class="flex flex-wrap gap-2">${pend.map(x =>
+                `<button onclick="setTab('${x[1]}')" class="bg-amber-50 border border-amber-200 text-amber-800 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-amber-100">⚠ ${x[0]}</button>`).join('')}</div>` : '';
+        }
+
+        function setTab(t) {
+            ['plan', 'verificaciones', 'alertas', 'custodia', 'usuarios', 'categorias', 'devoluciones', 'financiamiento', 'publicidad', 'logistica',
+             'membresias', 'parametros', 'seguridad'].forEach(x => document.getElementById('tab-' + x).classList.toggle('hidden', x !== t));
+            document.querySelectorAll('.tab-btn').forEach(b => { b.classList.toggle('active', b.dataset.tab === t); b.classList.toggle('text-gray-500', b.dataset.tab !== t); });
+            ({ usuarios: cargarUsuarios, categorias: cargarCategorias, devoluciones: cargarDevoluciones,
+               financiamiento: cargarFinanciamiento, seguridad: () => { verificar(); cargarAuditoria(); },
+               plan: AdminPlan.indicadores, verificaciones: AdminPlan.verificaciones, alertas: AdminPlan.alertas, custodia: AdminPlan.custodia,
+               publicidad: AdminPlan.publicidad, logistica: AdminPlan.transportistas, membresias: AdminPlan.membresias,
+               parametros: AdminPlan.parametros })[t]();
+        }
+
+        // ── Usuarios ──
+        async function cargarUsuarios() {
+            const q = encodeURIComponent(document.getElementById('u-q').value.trim());
+            const data = await API.get(`/admin/usuarios?q=${q}&tipo=${document.getElementById('u-tipo').value}`);
+            const T = { ADMINISTRADOR: 'bg-red-100 text-red-700', VENDEDOR: 'bg-blue-100 text-blue-700', COMPRADOR: 'bg-gray-100 text-gray-600' };
+            const E = { ACTIVO: 'bg-green-100 text-green-700', SUSPENDIDO: 'bg-red-100 text-red-700', INACTIVO: 'bg-gray-100 text-gray-600' };
+            document.getElementById('usuarios-tbody').innerHTML = data.length ? data.map(u => `
+                <tr class="border-t border-gray-50 hover:bg-gray-50/50">
+                  <td class="px-5 py-3 font-medium text-[#0B2319]">${UI.esc(u.nombre)} ${UI.esc(u.apellido)}
+                    ${u.nombre_negocio ? `<p class="text-[11px] text-gray-400">${UI.esc(u.nombre_negocio)}</p><div class="flex flex-wrap gap-1 mt-0.5">${UI.insignias(u, { chico: true })}</div>` : ''}
+                    ${u.totp_activo ? '<p class="text-[10px] text-[#2E6B42]">🔐 2FA activa</p>' : ''}</td>
+                  <td class="px-5 py-3 text-gray-500">${UI.esc(u.email)}</td>
+                  <td class="px-5 py-3">${UI.badge(u.tipo_usuario, T[u.tipo_usuario])}</td>
+                  <td class="px-5 py-3">${UI.badge(u.estado, E[u.estado])}${u.bloqueado ? `<p class="text-[10px] text-red-500 mt-1">Bloqueado hasta ${UI.fechaHora(u.bloqueado_hasta)}</p>` : ''}</td>
+                  <td class="px-5 py-3 text-xs">${UI.esc(u.score_nivel || 'BRONCE')} · ${u.score_puntos || 0}</td>
+                  <td class="px-5 py-3 text-gray-400 text-xs">${UI.fecha(u.fecha_registro, false)}</td>
+                  <td class="px-5 py-3 whitespace-nowrap text-xs space-x-2">
+                    ${u.id_vendedor && !u.verificado ? `<button class="text-[#2E6B42] font-semibold hover:underline" onclick="setTab('verificaciones')">Revisar documentos</button>` : ''}
+                    ${u.bloqueado ? `<button class="text-amber-600 font-semibold hover:underline" onclick="AdminPlan.desbloquear('${u.id_usuario}')">Desbloquear</button>` : ''}
+                    ${u.id_usuario === sesion.id_usuario ? '<span class="text-gray-300">(tú)</span>' : u.estado === 'ACTIVO'
+                      ? `<button class="text-red-500 hover:underline" onclick="estadoUsuario('${u.id_usuario}','SUSPENDIDO')">Suspender</button>`
+                      : `<button class="text-green-600 hover:underline" onclick="estadoUsuario('${u.id_usuario}','ACTIVO')">Reactivar</button>`}
+                  </td></tr>`).join('')
+              : `<tr><td colspan="7" class="px-5 py-10 text-center text-gray-400">Sin usuarios</td></tr>`;
+        }
+        async function estadoUsuario(id, estado) {
+            if (estado === 'SUSPENDIDO' && !confirm('¿Suspender? Se cerrarán todas sus sesiones al instante.')) return;
+            try { await API.put(`/admin/usuarios/${id}/estado`, { estado }); UI.toast('Usuario actualizado'); cargarUsuarios(); }
+            catch (e) { UI.toast(e.message, 'error'); }
+        }
+        async function verificarVendedor(id) {
+            try { await API.put(`/admin/vendedores/${id}/verificar`, { verificado: true }); UI.toast('Vendedor verificado'); cargarUsuarios(); cargarStats(); }
+            catch (e) { UI.toast(e.message, 'error'); }
+        }
+        function nuevoAdmin() {
+            UI.modal.open(`<form class="p-6 space-y-3" id="f-admin">
+                <h3 class="font-bold text-[#0B2319] text-lg">Nuevo administrador</h3>
+                <div class="grid grid-cols-2 gap-3"><input id="a-n" class="agro-input" placeholder="Nombre" required><input id="a-a" class="agro-input" placeholder="Apellido" required></div>
+                <input id="a-e" type="email" class="agro-input" placeholder="Correo" required>
+                <input id="a-p" type="password" class="agro-input" placeholder="Contraseña (mín. 10)" required minlength="10">
+                <button class="btn-verde w-full">Crear</button></form>`, { ancho: 'max-w-md' });
+            document.getElementById('f-admin').onsubmit = async (e) => {
+                e.preventDefault();
+                try {
+                    await API.post('/admin/usuarios', { nombre: document.getElementById('a-n').value, apellido: document.getElementById('a-a').value,
+                        email: document.getElementById('a-e').value, password: document.getElementById('a-p').value });
+                    UI.modal.close(); UI.toast('Administrador creado'); cargarUsuarios();
+                } catch (err) { UI.toast(err.message, 'error'); }
+            };
+        }
+
+        // ── Categorías ──
+        let categorias = [];
+        const TB = { CULTIVO: 'bg-green-100 text-green-700', MAQUINARIA: 'bg-blue-100 text-blue-700', EQUIPO: 'bg-purple-100 text-purple-700', TERRENO: 'bg-yellow-100 text-yellow-700' };
+        async function cargarCategorias() {
+            categorias = await API.get('/categorias?todas=1');
+            document.getElementById('cat-titulo').textContent = `Categorías (${categorias.length})`;
+            document.getElementById('categorias-lista').innerHTML = categorias.map(c => `
+                <div class="bg-white rounded-xl border border-gray-100 px-5 py-4 flex items-center justify-between shadow-sm ${c.estado === 'INACTIVO' ? 'opacity-50' : ''}">
+                  <div class="flex items-center gap-3">${UI.badge(c.tipo, TB[c.tipo])}
+                    <span class="font-medium text-[#0B2319] text-sm">${UI.esc(c.nombre)}</span>
+                    ${UI.badge('IVA ' + Math.round(Number(c.tasa_iva) * 100) + ' %', Number(c.tasa_iva) === 0 ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-600')}
+                    <span class="text-xs text-gray-400">${c.productos} productos</span></div>
+                  <div class="flex gap-3 text-xs">
+                    <button class="text-gray-500 hover:underline" onclick="modalCategoria('${c.id_categoria}')">Editar</button>
+                    <button class="${c.estado === 'ACTIVO' ? 'text-red-500' : 'text-green-600'} hover:underline"
+                      onclick="estadoCategoria('${c.id_categoria}','${c.estado === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO'}')">${c.estado === 'ACTIVO' ? 'Desactivar' : 'Activar'}</button>
+                  </div></div>`).join('');
+        }
+        function modalCategoria(id) {
+            const c = id ? categorias.find(x => x.id_categoria === id) : null;
+            UI.modal.open(`<form class="p-6 space-y-4" id="f-cat">
+                <h3 class="font-bold text-[#0B2319] text-lg">${c ? 'Editar' : 'Nueva'} categoría</h3>
+                <div><label class="agro-label">Nombre</label><input id="c-n" class="agro-input" required maxlength="100" value="${UI.esc(c ? c.nombre : '')}"></div>
+                <div><label class="agro-label">Tipo</label><select id="c-t" class="agro-input">
+                  ${['CULTIVO', 'MAQUINARIA', 'EQUIPO', 'TERRENO'].map(t => `<option ${c && c.tipo === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+                <div><label class="agro-label">Tasa de IVA</label><select id="c-iva" class="agro-input">
+                  <option value="0" ${c && Number(c.tasa_iva) === 0 ? 'selected' : ''}>0 % — agrícola sin industrializar, tractores, riego (art. 2-A LIVA)</option>
+                  <option value="0.16" ${!c || Number(c.tasa_iva) === 0.16 ? 'selected' : ''}>16 % — tasa general</option></select></div>
+                <button class="btn-verde w-full">Guardar</button></form>`, { ancho: 'max-w-md' });
+            document.getElementById('f-cat').onsubmit = async (e) => {
+                e.preventDefault();
+                const body = { nombre: document.getElementById('c-n').value, tipo: document.getElementById('c-t').value, tasa_iva: document.getElementById('c-iva').value };
+                try { c ? await API.put('/categorias/' + id, body) : await API.post('/categorias', body); UI.modal.close(); cargarCategorias(); }
+                catch (err) { UI.toast(err.message, 'error'); }
+            };
+        }
+        async function estadoCategoria(id, estado) {
+            try { await API.put(`/categorias/${id}/estado`, { estado }); cargarCategorias(); } catch (e) { UI.toast(e.message, 'error'); }
+        }
+
+        // ── Devoluciones ──
+        async function cargarDevoluciones() {
+            const d = await API.get('/devoluciones');
+            const C = { SOLICITADA: 'bg-yellow-100 text-yellow-700', EN_REVISION: 'bg-blue-100 text-blue-700', APROBADA: 'bg-green-100 text-green-700', RECHAZADA: 'bg-red-100 text-red-700', RESUELTA: 'bg-gray-100 text-gray-600' };
+            document.getElementById('devoluciones-lista').innerHTML = d.length ? d.map(x => `
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                  <div class="flex items-start justify-between gap-3 flex-wrap">
+                    <div><p class="font-bold text-[#0B2319] text-sm">${x.tipo === 'DISPUTA' ? '⚖ Disputa' : '↩ Devolución'} · Pedido #${x.folio} · ${fmt(x.total)}</p>
+                      <p class="text-xs text-gray-400">${UI.esc(x.comprador_nombre)} → ${UI.esc(x.vendedor_nombre)} · ${UI.fecha(x.fecha_solicitud)}</p></div>
+                    ${UI.badge(x.estado, C[x.estado])}</div>
+                  <p class="text-sm text-gray-600 mt-3">${UI.esc(x.motivo)}</p>
+                  ${x.evidencia_url ? `<a href="${UI.esc(x.evidencia_url)}" target="_blank"><img src="${UI.esc(x.evidencia_url)}" class="h-24 rounded-xl mt-3 border"></a>` : ''}
+                  ${x.resolucion ? `<p class="text-xs text-gray-500 mt-2">Resolución: ${UI.esc(x.resolucion)}</p>` : ''}
+                  <p class="text-[11px] mt-2">${UI.badge((UI.CUSTODIA[x.custodia_estado] || {}).l || x.custodia_estado, (UI.CUSTODIA[x.custodia_estado] || {}).c || '')}
+                    <button class="ml-2 text-[#2E6B42] font-semibold hover:underline" onclick="AdminPlan.mediacion('${x.id_devolucion}')">💬 Mediación (${x.mensajes || 0})</button></p>
+                  ${['SOLICITADA', 'EN_REVISION'].includes(x.estado) ? `<div class="flex gap-2 mt-4 flex-wrap">
+                    <button class="btn-verde !py-2 text-xs" onclick="resolver('${x.id_devolucion}','APROBADA')">Aprobar y reembolsar</button>
+                    <button class="btn-borde !py-2 text-xs text-red-500" onclick="resolver('${x.id_devolucion}','RECHAZADA')">Rechazar</button>
+                    ${x.estado === 'SOLICITADA' ? `<button class="btn-borde !py-2 text-xs" onclick="resolver('${x.id_devolucion}','EN_REVISION')">En revisión</button>` : ''}</div>` : ''}
+                </div>`).join('') : '<p class="text-center text-gray-400 py-16">Sin solicitudes de devolución</p>';
+        }
+        async function resolver(id, estado) {
+            const resolucion = estado === 'EN_REVISION' ? undefined : prompt('Comentario de la resolución (opcional):') || undefined;
+            try { await API.put(`/devoluciones/${id}/estado`, { estado, resolucion }); UI.toast('Devolución actualizada'); cargarDevoluciones(); cargarStats(); }
+            catch (e) { UI.toast(e.message, 'error'); }
+        }
+
+        // ── Financiamiento ──
+        async function cargarFinanciamiento() {
+            const d = await API.get('/financiamiento');
+            const C = { ACTIVO: 'bg-green-100 text-green-700', PAGADO: 'bg-blue-100 text-blue-700', VENCIDO: 'bg-red-100 text-red-700', CANCELADO: 'bg-gray-100 text-gray-600' };
+            document.getElementById('financiamiento-tbody').innerHTML = d.length ? d.map(f => `
+                <tr class="border-t border-gray-50">
+                  <td class="px-5 py-3">${UI.esc(f.comprador_nombre)}</td><td class="px-5 py-3 font-mono text-xs">#${f.folio}</td>
+                  <td class="px-5 py-3 font-bold text-[#2E6B42]">${fmt(f.monto_total)}<p class="text-[11px] text-gray-400 font-normal">a pagar ${fmt(f.total_a_pagar)}</p></td>
+                  <td class="px-5 py-3 text-gray-500">${f.plazos_pagados}/${f.num_plazos} × ${fmt(f.monto_plazo)}</td>
+                  <td class="px-5 py-3">${UI.badge(f.estado, C[f.estado])}</td>
+                  <td class="px-5 py-3 text-xs text-gray-400">${UI.fecha(f.fecha_inicio, false)}</td>
+                  <td class="px-5 py-3 text-xs whitespace-nowrap">${f.estado === 'ACTIVO' ? `<button class="text-[#2E6B42] font-semibold hover:underline" onclick="abono('${f.id_financiamiento}')">Registrar abono</button>` : ''}</td>
+                </tr>`).join('') : '<tr><td colspan="7" class="px-5 py-10 text-center text-gray-400">Sin planes de financiamiento</td></tr>';
+        }
+        async function abono(id) {
+            try { const r = await API.put(`/financiamiento/${id}/abono`); UI.toast(`Abono registrado (${r.plazos_pagados}/${r.num_plazos})`); cargarFinanciamiento(); }
+            catch (e) { UI.toast(e.message, 'error'); }
+        }
+
+        // ── Seguridad ──
+        async function verificar() {
+            const box = document.getElementById('integridad');
+            box.innerHTML = '<div class="skeleton h-20 col-span-full"></div>';
+            try {
+                const r = await API.get('/admin/integridad');
+                box.innerHTML = r.map(x => {
+                    const ok = Number(x.alterados) === 0;
+                    return `<div class="rounded-xl p-4 ${ok ? 'bg-green-50' : 'bg-red-50'}">
+                      <p class="text-xs font-semibold ${ok ? 'text-green-700' : 'text-red-700'}">${ok ? '✔ Íntegro' : '⚠ ALTERADO'}</p>
+                      <p class="font-bold text-[#0B2319] text-sm mt-1">${UI.esc(x.elemento)}</p>
+                      <p class="text-xs text-gray-500">${x.revisados} registros revisados · ${x.alterados} alterados</p>
+                      ${x.detalle && !ok ? `<p class="text-xs text-red-600 mt-1">Primer error: ${UI.esc(x.detalle)}</p>` : ''}</div>`;
+                }).join('');
+            } catch (e) { box.innerHTML = `<p class="text-red-500 text-sm">${UI.esc(e.message)}</p>`; }
+        }
+        async function cargarAuditoria() {
+            const sel = document.getElementById('log-tabla');
+            if (sel.options.length === 1) {
+                ['usuario', 'vendedor', 'producto', 'terreno', 'pedido', 'pago', 'calificacion', 'devolucion', 'financiamiento', 'categoria']
+                    .forEach(t => sel.insertAdjacentHTML('beforeend', `<option>${t}</option>`));
+            }
+            const logs = await API.get(`/admin/auditoria?limit=60&tabla=${sel.value}`);
+            const OP = { INSERT: 'bg-green-100 text-green-700', UPDATE: 'bg-blue-100 text-blue-700', DELETE: 'bg-red-100 text-red-700' };
+            document.getElementById('auditoria').innerHTML = logs.map(l => `
+                <div class="border border-gray-100 rounded-xl p-3">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-gray-400">#${l.id_log}</span>${UI.badge(l.operacion, OP[l.operacion])}
+                    <span class="font-semibold text-[#0B2319]">${UI.esc(l.tabla_afectada)}</span>
+                    <span class="text-gray-400">${UI.fechaHora(l.fecha)} · ${UI.esc(l.usuario || l.rol_app)} (${UI.esc(l.usuario_bd)})</span>
+                  </div>
+                  ${l.cambios && Object.keys(l.cambios).length ? `<p class="mt-1 text-gray-600">${Object.entries(l.cambios).slice(0, 4).map(([k, v]) =>
+                    `<b>${UI.esc(k)}</b>: ${UI.esc(JSON.stringify(v[0]))} → ${UI.esc(JSON.stringify(v[1]))}`).join(' · ')}</p>` : ''}
+                  <p class="font-mono text-[10px] text-gray-400 mt-1 break-all">hash ${l.hash_actual.slice(0, 24)}… ← ${l.hash_anterior.slice(0, 16)}…</p>
+                </div>`).join('') || '<p class="text-gray-400">Sin registros</p>';
+        }
+
+        (async () => {
+            if (!sesion) return;
+            if (sesion.tipo_usuario !== 'ADMINISTRADOR') { document.getElementById('sin-permiso').classList.remove('hidden'); return; }
+            document.getElementById('vista-admin').classList.remove('hidden');
+            let t;
+            document.getElementById('u-q').addEventListener('input', () => { clearTimeout(t); t = setTimeout(cargarUsuarios, 300); });
+            document.getElementById('u-tipo').addEventListener('change', cargarUsuarios);
+            try { await cargarStats(); setTab(new URLSearchParams(location.search).get('tab') || 'plan'); } catch (e) { UI.toast(e.message, 'error'); }
+        })();
+    </script>
+    <script src="js/admin-plan.js"></script>
+    <script src="Barra_Lateral.js"></script>
+</body>
+</html>

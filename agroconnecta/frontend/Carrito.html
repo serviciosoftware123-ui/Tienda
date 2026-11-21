@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Carrito - AgroConnecta</title>
+<link rel="stylesheet" href="css/app.css">
+<link rel="icon" href="img/favicon.svg">
+<script src="js/api.js"></script>
+<script src="agro_data.js"></script>
+<script src="js/municipios.js"></script>
+<style>
+  .qty-btn { width:32px;height:32px;border-radius:8px;border:1px solid #e5e7eb;background:white;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600; }
+  .metodo { border:1px solid #e5e7eb; border-radius:14px; padding:12px 14px; cursor:pointer; display:flex; gap:10px; align-items:flex-start; }
+  .metodo.sel { border-color:#2E6B42; background:#F3F9F6; }
+</style>
+</head>
+<body class="bg-[#F8F7F2] flex min-h-screen">
+<div id="sidebar-root" data-page="carrito"></div>
+
+<main class="flex-1 p-8 overflow-y-auto min-w-0">
+  <header class="mb-8">
+    <h2 class="text-4xl font-serif text-[#0B2319] mb-1">Mi Carrito</h2>
+    <p class="text-gray-400 text-sm" id="cart-count">Cargando…</p>
+  </header>
+
+  <div id="aviso" class="hidden mb-6 bg-orange-50 text-orange-700 text-sm rounded-xl p-4"></div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-8" id="cart-grid">
+    <div class="lg:col-span-2 space-y-6" id="cart-items"></div>
+
+    <!-- Resumen y pago
+         POST /api/pedidos/cotizar → flete por vendedor (PostGIS: banderazo + $/km + margen) e IVA por renglón
+         POST /api/pedidos { items, modalidad_entrega, direccion_entrega, municipio, metodo_pago, num_plazos }
+         • Se crea UN pedido por vendedor (ligados por grupo_compra)
+         • Precio, IVA (0 % agrícola / 16 %), flete y total los calcula PostgreSQL, no el navegador
+         • El pago en línea queda EN CUSTODIA hasta que el comprador confirma de recibido -->
+    <div class="lg:col-span-1">
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 lg:sticky lg:top-8 space-y-5">
+        <h3 class="font-bold text-[#0B2319]">Resumen de pedido</h3>
+        <div class="text-sm space-y-1.5">
+          <div class="flex justify-between text-gray-500"><span>Subtotal</span><span id="cart-subtotal">$0</span></div>
+          <div class="flex justify-between text-gray-500"><span title="0 % en productos agrícolas sin industrializar (art. 2-A LIVA); 16 % en lo demás">IVA</span><span id="cart-iva">$0</span></div>
+          <div class="flex justify-between text-gray-500"><span>Flete</span><span id="cart-envio">$0</span></div>
+          <div id="flete-detalle" class="text-[11px] text-gray-400 space-y-0.5"></div>
+        </div>
+        <div class="border-t border-gray-100 pt-4 flex items-center justify-between">
+          <span class="font-bold text-[#0B2319]">Total</span>
+          <span class="text-2xl font-bold text-[#2E6B42]" id="cart-total">$0</span>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider">Entrega</label>
+          <div class="flex gap-2">
+            <button id="btn-envio" onclick="setModalidad('ENVIO')" class="flex-1 py-2 rounded-xl text-xs font-semibold border">📦 Envío</button>
+            <button id="btn-recoleccion" onclick="setModalidad('RECOLECCION')" class="flex-1 py-2 rounded-xl text-xs font-semibold border">🏪 Recolección</button>
+          </div>
+          <div id="campos-envio">
+            <select id="municipio" class="agro-input mt-3" aria-label="Municipio de entrega"></select>
+            <input id="direccion" class="agro-input mt-2" placeholder="Calle, número y colonia" maxlength="300">
+            <p class="text-[11px] text-gray-400 mt-1.5">Lo lleva un transportista aliado. Flete = banderazo + tarifa por km desde la parcela del vendedor.</p>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider">Forma de pago (modo prueba)</label>
+          <div id="metodos" class="space-y-2"></div>
+          <select id="plazos" class="agro-input mt-3 hidden">
+            <option value="3">3 meses</option><option value="6" selected>6 meses</option>
+            <option value="9">9 meses</option><option value="12">12 meses</option>
+          </select>
+          <p id="plazo-info" class="text-xs text-gray-500 mt-2 hidden"></p>
+        </div>
+
+        <p class="text-[11px] text-gray-500 bg-[#F3F9F6] rounded-xl p-3 leading-snug">🔒 <b>Pago protegido.</b> Tu dinero queda en custodia y se entrega al vendedor 48 h después de que confirmes de recibido. Si el producto llega mal, te lo reembolsamos.</p>
+        <button id="btn-pagar" class="w-full bg-[#2E6B42] text-white py-3 rounded-xl font-semibold hover:bg-[#245534] text-sm disabled:opacity-50" onclick="proceedCheckout()">Continuar con el pedido</button>
+        <a href="Catalogo.html" class="block text-center text-[#2E6B42] text-sm font-medium hover:underline">Seguir comprando</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="cart-empty" class="hidden flex-col items-center justify-center py-24 text-center">
+    <div class="bg-gray-100 p-6 rounded-2xl mb-4">
+      <svg class="w-12 h-12 text-gray-300 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+    </div>
+    <p class="text-[#0B2319] font-semibold text-lg mb-2">Tu carrito está vacío</p>
+    <p class="text-gray-400 text-sm mb-5">Explora el catálogo y agrega productos.</p>
+    <a href="Catalogo.html" class="btn-verde">Explorar catálogo</a>
+  </div>
+</main>
+
+<script>
+let modalidad = 'ENVIO', metodo = 'SPEI', items = [], config = null, cotizacion = null, tCot = null, nCot = 0;
+
+function setModalidad(m) {
+  modalidad = m;
+  const on = 'bg-[#2E6B42] text-white border-[#2E6B42]', off = 'bg-white text-gray-600 border-gray-200';
+  document.getElementById('btn-envio').className = `flex-1 py-2 rounded-xl text-xs font-semibold border ${m === 'ENVIO' ? on : off}`;
+  document.getElementById('btn-recoleccion').className = `flex-1 py-2 rounded-xl text-xs font-semibold border ${m === 'RECOLECCION' ? on : off}`;
+  document.getElementById('campos-envio').classList.toggle('hidden', m !== 'ENVIO');
+  cotizar();
+}
+function setMetodo(m) {
+  metodo = m;
+  document.querySelectorAll('.metodo').forEach(el => el.classList.toggle('sel', el.dataset.m === m));
+  document.getElementById('plazos').classList.toggle('hidden', m !== 'FINANCIAMIENTO');
+  document.getElementById('plazo-info').classList.toggle('hidden', m !== 'FINANCIAMIENTO');
+  totales();
+}
+
+function vendedores() {
+  const g = new Map();
+  for (const it of items) {
+    if (!g.has(it.id_vendedor)) g.set(it.id_vendedor, { nombre: it.vendedor_nombre, items: [] });
+    g.get(it.id_vendedor).items.push(it);
+  }
+  return [...g.values()];
+}
+
+// Cotización real del servidor (IVA por renglón y flete por distancia con PostGIS)
+function cotizar() {
+  clearTimeout(tCot);
+  tCot = setTimeout(async () => {
+    if (!items.length) return;
+    const id = ++nCot;
+    try {
+      const r = await API.post('/pedidos/cotizar', {
+        items: items.map(i => ({ id_producto: i.id, cantidad: i.qty })),
+        modalidad_entrega: modalidad, municipio: document.getElementById('municipio').value,
+      });
+      if (id !== nCot) return;
+      cotizacion = r;
+      totales();
+    } catch (e) { document.getElementById('flete-detalle').textContent = e.message; }
+  }, 200);
+}
+
+function totales() {
+  if (!cotizacion) return;
+  const r = cotizacion;
+  document.getElementById('cart-subtotal').textContent = UI.money(r.subtotal);
+  document.getElementById('cart-iva').textContent = r.iva ? UI.money(r.iva) : '$0.00 (tasa 0 %)';
+  document.getElementById('cart-envio').textContent = modalidad === 'ENVIO' ? UI.money(r.envio) : 'Recoges tú';
+  document.getElementById('cart-total').textContent = UI.money(r.total);
+  document.getElementById('flete-detalle').innerHTML = modalidad === 'ENVIO'
+    ? r.vendedores.map(v => `<div class="flex justify-between"><span>🚚 ${UI.esc(v.vendedor)} · ${v.flete.distancia_km} km</span><span>${UI.money(v.flete.costo_envio)}</span></div>`).join('')
+    : '';
+  const n = +document.getElementById('plazos').value;
+  document.getElementById('plazo-info').textContent =
+    `${n} pagos de ${UI.money(r.total * (1 + 0.015 * n) / n)} (1.5 % mensual simple) · total ${UI.money(r.total * (1 + 0.015 * n))}`;
+}
+
+function renderCart() {
+  const grid = document.getElementById('cart-grid');
+  if (!items.length) {
+    grid.style.display = 'none';
+    document.getElementById('cart-empty').style.display = 'flex';
+    document.getElementById('cart-count').textContent = '0 productos';
+    return;
+  }
+  grid.style.display = 'grid';
+  document.getElementById('cart-empty').style.display = 'none';
+  const grupos = vendedores();
+  document.getElementById('cart-count').textContent =
+    `${items.length} producto${items.length !== 1 ? 's' : ''} de ${grupos.length} vendedor${grupos.length !== 1 ? 'es' : ''}` +
+    (grupos.length > 1 ? ' · se generará un pedido por vendedor' : '');
+
+  document.getElementById('cart-items').innerHTML = grupos.map(g => `
+    <div>
+      <p class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">🏪 ${UI.esc(g.nombre)}</p>
+      <div class="space-y-3">${g.items.map(item => `
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-4 flex-wrap sm:flex-nowrap">
+          <img src="${UI.img(item.imagen)}" alt="" class="w-20 h-20 object-cover rounded-xl flex-shrink-0 border border-gray-100" onerror="this.src=UI.FALLBACK_IMG">
+          <div class="flex-1 min-w-[140px]">
+            <p class="text-[10px] text-[#4fb877] font-bold uppercase">${UI.esc(item.categoria)}</p>
+            <a href="Producto.html?id=${UI.esc(item.id)}" class="font-bold text-[#0B2319] text-sm">${UI.esc(item.nombre)}</a>
+            <p class="text-xs text-gray-400 mt-0.5">${UI.esc(item.ubicacion || '')} · stock ${Number(item.stock).toLocaleString('es-MX')}</p>
+            <p class="text-[#2E6B42] font-bold mt-1">${UI.money0(item.precio)} / ${UI.esc(item.unidad)}
+              <span class="text-[10px] font-semibold text-gray-400 ml-1">${Number(item.tasa_iva) === 0 ? 'IVA 0 %' : 'IVA 16 %'}</span></p>
+          </div>
+          <div class="flex items-center gap-2 ml-auto">
+            <div class="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-xl p-1">
+              <button class="qty-btn" onclick="cambiar('${UI.esc(item.id)}', -1)">−</button>
+              <span class="w-10 text-center font-bold text-[#0B2319] text-sm">${item.qty}</span>
+              <button class="qty-btn" onclick="cambiar('${UI.esc(item.id)}', 1)">+</button>
+            </div>
+            <button onclick="quitar('${UI.esc(item.id)}')" class="p-2 rounded-xl hover:bg-red-50 text-red-400" aria-label="Quitar">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            </button>
+          </div>
+        </div>`).join('')}</div>
+    </div>`).join('');
+  totales();
+}
+
+function leerLocal() { items = AGRO_DB.getCart().map(i => ({ id: i.id, qty: i.qty, ...i.snap })); }
+function cambiar(id, d) { const it = items.find(i => i.id === id); AGRO_DB.setQty(id, it.qty + d); leerLocal(); renderCart(); cotizar(); }
+function quitar(id) { AGRO_DB.removeFromCart(id); leerLocal(); renderCart(); cotizar(); }
+
+async function proceedCheckout() {
+  const s = API.getSession();
+  if (!s) { location.href = 'login.html?volver=Carrito.html'; return; }
+  if (s.tipo_usuario !== 'COMPRADOR') return UI.toast('Solo las cuentas de comprador pueden hacer pedidos', 'error');
+  const dir = document.getElementById('direccion').value.trim();
+  if (modalidad === 'ENVIO' && !dir) return UI.toast('Escribe la dirección de entrega', 'error');
+  const btn = document.getElementById('btn-pagar');
+  btn.disabled = true; btn.textContent = 'Procesando…';
+  try {
+    const r = await API.post('/pedidos', {
+      items: items.map(i => ({ id_producto: i.id, cantidad: i.qty })),
+      modalidad_entrega: modalidad, direccion_entrega: dir || undefined,
+      municipio: modalidad === 'ENVIO' ? document.getElementById('municipio').value : undefined,
+      metodo_pago: metodo, num_plazos: metodo === 'FINANCIAMIENTO' ? +document.getElementById('plazos').value : undefined,
+    });
+    AGRO_DB.clearCart();
+    manejarPago(r);
+  } catch (e) {
+    UI.toast(e.message, 'error');
+    btn.disabled = false; btn.textContent = 'Continuar con el pedido';
+  }
+}
+
+// Respuesta del checkout → abrir el pago correspondiente
+function manejarPago(r) {
+  const folios = r.pedidos.map(p => '#' + p.folio).join(', ');
+  if (r.pago.tipo === 'REDIRECT') { location.href = r.pago.url; return; }
+  if (r.pago.tipo === 'SIMULADO') return abrirPagoSimulado(r.grupo, r.total, folios);
+  if (r.pago.tipo === 'SPEI') return UI.pagoSpei(r.pago, { titulo: '· Pedido ' + folios, volver: 'Pedidos.html?grupo=' + r.grupo,
+    simular: () => API.post('/pagos/spei/simular', { grupo: r.grupo }) });
+  if (r.pago.tipo === 'ERROR') { UI.toast(r.pago.mensaje, 'error'); setTimeout(() => location.href = 'Pedidos.html', 1800); return; }
+  UI.toast(`Pedido${r.pedidos.length > 1 ? 's' : ''} ${folios} creado${r.pedidos.length > 1 ? 's' : ''}`);
+  setTimeout(() => location.href = 'Pedidos.html?grupo=' + r.grupo, 900);
+}
+
+// Pago con tarjeta de prueba (simulado dentro de AgroConnecta)
+function abrirPagoSimulado(grupo, total, folios) {
+  UI.modal.open(`
+    <div class="p-6 border-b border-gray-100">
+      <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">Pago de prueba · Pedido ${UI.esc(folios)}</p>
+      <p class="text-3xl font-bold text-[#2E6B42] mt-1">${UI.money(total)}</p>
+    </div>
+    <form class="p-6 space-y-3" onsubmit="pagarSimulado(event, '${grupo}')">
+      <div class="rounded-2xl p-5 text-white bg-gradient-to-br from-[#0B2319] to-[#2E6B42] mb-2">
+        <p class="text-xs opacity-70">Tarjeta de prueba</p>
+        <p id="card-num-view" class="text-xl tracking-widest font-semibold mt-3">4242 4242 4242 4242</p>
+        <p class="text-xs opacity-70 mt-3">Sin cobro real · ambiente de pruebas</p>
+      </div>
+      <input id="card-num" class="agro-input" inputmode="numeric" value="4242 4242 4242 4242" maxlength="19" oninput="document.getElementById('card-num-view').textContent=this.value">
+      <div class="grid grid-cols-2 gap-3">
+        <input class="agro-input" placeholder="MM/AA" value="12/30" maxlength="5">
+        <input class="agro-input" placeholder="CVV" value="123" maxlength="4" inputmode="numeric">
+      </div>
+      <p class="text-[11px] text-gray-400">4242 4242 4242 4242 → aprobada · 4000 0000 0000 0002 → rechazada</p>
+      <button id="btn-sim" class="w-full bg-[#2E6B42] text-white py-3 rounded-xl font-semibold">Pagar ${UI.money(total)}</button>
+      <a href="Pedidos.html?grupo=${grupo}" class="block text-center text-sm text-gray-500">Pagar después</a>
+    </form>`, { ancho: 'max-w-sm' });
+}
+async function pagarSimulado(e, grupo) {
+  e.preventDefault();
+  const b = document.getElementById('btn-sim'); b.disabled = true; b.textContent = 'Procesando…';
+  try {
+    const r = await API.post('/pagos/simulado/confirmar', { grupo, tarjeta: document.getElementById('card-num').value });
+    UI.modal.close();
+    UI.toast(r.estado === 'APROBADO' ? '✓ Pago aprobado' : 'Pago rechazado. Puedes reintentar desde Pedidos.', r.estado === 'APROBADO' ? 'ok' : 'error');
+    setTimeout(() => location.href = 'Pedidos.html?grupo=' + grupo, 1100);
+  } catch (err) { UI.toast(err.message, 'error'); b.disabled = false; b.textContent = 'Pagar'; }
+}
+
+(async () => {
+  const mun = document.getElementById('municipio');
+  mun.innerHTML = opcionesMunicipios();
+  const s0 = API.getSession();
+  if (s0 && s0.ciudad) {
+    const k = Object.keys(MUNICIPIOS).find(m => s0.ciudad.toLowerCase().includes(m.split(' (')[0].split(',')[0].toLowerCase()));
+    if (k) mun.value = k;
+  }
+  mun.addEventListener('change', cotizar);
+  document.getElementById('plazos').addEventListener('change', totales);
+  setModalidad('ENVIO');
+  leerLocal();
+  renderCart();
+  try {
+    config = await AGRO_DB.getConfig();
+    document.getElementById('metodos').innerHTML = config.metodos_pago.map(m => `
+      <label class="metodo" data-m="${m.id}" onclick="setMetodo('${m.id}')">
+        <input type="radio" name="metodo" class="mt-1 accent-[#2E6B42]" ${m.id === metodo ? 'checked' : ''}>
+        <span><span class="block text-sm font-semibold text-[#0B2319]">${UI.esc(m.nombre)}</span>
+        <span class="block text-xs text-gray-500">${UI.esc(m.descripcion)}</span></span></label>`).join('');
+    setMetodo(metodo);
+    const s = API.getSession();
+    if (s && s.direccion) document.getElementById('direccion').value = s.direccion;
+    const r = await AGRO_DB.refreshCart();
+    if (r.quitados.length) {
+      const av = document.getElementById('aviso');
+      av.classList.remove('hidden');
+      av.textContent = `Se quitaron del carrito porque ya no están disponibles: ${r.quitados.join(', ')}`;
+    }
+    leerLocal(); renderCart(); cotizar();
+  } catch (e) { UI.toast(e.message, 'error'); }
+})();
+</script>
+<script src="Barra_Lateral.js"></script>
+</body>
+</html>

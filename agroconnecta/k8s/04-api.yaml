@@ -1,0 +1,124 @@
+# API Node.js — Deployment con 2 réplicas + autoescalado
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: agroconnecta-uploads
+  namespace: agroconnecta
+spec:
+  # En un clúster de un solo nodo (Docker Desktop / minikube) basta ReadWriteOnce.
+  # En la nube con varios nodos usa ReadWriteMany (EFS, Filestore, Azure Files) o un bucket S3.
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+# Documentos de verificación (INE, comprobantes) — CIFRADOS con AES-256-GCM; nunca se publican
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: agroconnecta-documentos
+  namespace: agroconnecta
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agroconnecta-api
+  namespace: agroconnecta
+spec:
+  selector: { app: agroconnecta-api }
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agroconnecta-api
+  namespace: agroconnecta
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }   # actualizaciones sin caída
+  selector:
+    matchLabels: { app: agroconnecta-api }
+  template:
+    metadata:
+      labels: { app: agroconnecta-api, tier: backend }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000          # usuario "node" de la imagen
+        fsGroup: 1000
+      containers:
+        - name: api
+          image: agroconnecta/api:3.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef: { name: agroconnecta-config }
+          env:
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: agroconnecta-secretos, key: DB_APP_PASSWORD } }
+            - name: JWT_SECRET
+              valueFrom: { secretKeyRef: { name: agroconnecta-secretos, key: JWT_SECRET } }
+            - name: DATA_ENCRYPTION_KEY
+              valueFrom: { secretKeyRef: { name: agroconnecta-secretos, key: DATA_ENCRYPTION_KEY } }
+            - name: SEED_ADMIN_PASSWORD
+              valueFrom: { secretKeyRef: { name: agroconnecta-secretos, key: SEED_ADMIN_PASSWORD } }
+            - name: SEED_DEMO_PASSWORD
+              valueFrom: { secretKeyRef: { name: agroconnecta-secretos, key: SEED_DEMO_PASSWORD } }
+            - name: STRIPE_SECRET_KEY
+              valueFrom: { secretKeyRef: { name: agroconnecta-secretos, key: STRIPE_SECRET_KEY, optional: true } }
+            - name: STRIPE_WEBHOOK_SECRET
+              valueFrom: { secretKeyRef: { name: agroconnecta-secretos, key: STRIPE_WEBHOOK_SECRET, optional: true } }
+            - name: MP_ACCESS_TOKEN
+              valueFrom: { secretKeyRef: { name: agroconnecta-secretos, key: MP_ACCESS_TOKEN, optional: true } }
+          readinessProbe:
+            httpGet: { path: /api/health, port: 3000 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /api/health, port: 3000 }
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits:   { cpu: 500m, memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: uploads, mountPath: /data/uploads }
+            - { name: documentos, mountPath: /data/privado }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: uploads
+          persistentVolumeClaim: { claimName: agroconnecta-uploads }
+        - name: documentos
+          persistentVolumeClaim: { claimName: agroconnecta-documentos }
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: agroconnecta-api
+  namespace: agroconnecta
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: agroconnecta-api }
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 70 }

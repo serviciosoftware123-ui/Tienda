@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catálogo - AgroConnecta</title>
+<link rel="stylesheet" href="css/app.css">
+<link rel="icon" href="img/favicon.svg">
+<script src="js/api.js"></script>
+<script src="agro_data.js"></script>
+</head>
+<body class="bg-[#F8F7F2] flex min-h-screen">
+<div id="sidebar-root" data-page="catalogo"></div>
+
+<main class="flex-1 p-4 sm:p-8 overflow-y-auto min-w-0">
+  <header class="mb-6">
+    <h2 class="text-4xl font-serif text-[#0B2319] mb-1">Catálogo de Productos</h2>
+    <p class="text-gray-400 text-sm" id="resultado-count">Cargando productos…</p>
+  </header>
+
+  <!-- Búsqueda + filtros → GET /api/productos?q=&categoria=&estado=&orden= -->
+  <div class="flex flex-wrap gap-3 mb-5">
+    <div class="flex-1 min-w-[240px] relative">
+      <span class="absolute inset-y-0 left-4 flex items-center text-gray-400 pointer-events-none">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      </span>
+      <input id="search-input" type="search" placeholder="Buscar: plátano, cacao, Comalcalco…"
+             class="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#4fb877]/20 text-sm shadow-sm">
+    </div>
+    <select id="filter-cat" class="px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-600 shadow-sm text-sm flex-1 sm:flex-none sm:min-w-[190px]">
+      <option value="">Todas las categorías</option>
+    </select>
+    <select id="filter-estado" class="px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-600 shadow-sm text-sm">
+      <option value="">Todos</option>
+      <option value="ACTIVO">Disponibles</option>
+      <option value="AGOTADO">Agotados</option>
+    </select>
+    <select id="filter-orden" class="px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-600 shadow-sm text-sm">
+      <option value="recientes">Más recientes</option>
+      <option value="precio_asc">Menor precio</option>
+      <option value="precio_desc">Mayor precio</option>
+      <option value="rating">Mejor calificados</option>
+    </select>
+  </div>
+
+  <label class="inline-flex items-center gap-2 mb-4 mr-3 bg-white border border-gray-200 rounded-full pl-2 pr-4 py-1.5 shadow-sm cursor-pointer select-none">
+    <input type="checkbox" id="filter-directo" class="w-4 h-4 accent-[#2E6B42]">
+    <span class="text-sm text-[#0B2319] font-semibold">Directo del productor</span>
+    <span class="text-xs text-gray-400 hidden sm:inline">· oculta a los acopiadores</span>
+  </label>
+  <span class="block sm:inline text-xs text-gray-400 align-middle mb-3 sm:mb-0">Solo ves productos de vendedores <b class="text-[#2E6B42]">verificados</b> · los ★ Premium aparecen primero</span>
+  <div id="filtro-vendedor" class="hidden mb-4"></div>
+  <div class="flex flex-wrap gap-2 mb-8" id="quick-tags">
+    <span class="text-xs text-gray-400 self-center mr-1">Búsquedas rápidas:</span>
+  </div>
+
+  <div id="anuncios" class="mb-8"></div>
+  <div id="productos-grid" class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6"></div>
+
+  <div id="empty-state" class="hidden flex-col items-center justify-center py-24 text-center">
+    <div class="bg-gray-100 p-6 rounded-2xl mb-4">
+      <svg class="w-12 h-12 text-gray-300 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+    </div>
+    <p class="text-[#0B2319] font-semibold text-lg mb-1">Sin resultados</p>
+    <p class="text-gray-400 text-sm">Intenta con otras palabras clave.</p>
+    <button onclick="clearSearch()" class="mt-4 text-[#2E6B42] text-sm font-semibold hover:underline">Limpiar búsqueda</button>
+  </div>
+</main>
+
+<script>
+const params = new URLSearchParams(location.search);
+let vendedor = params.get('vendedor') || '';
+
+function productoCard(p) {
+  const estadoColor = p.estado === 'ACTIVO' ? 'text-[#2E6B42]' : p.estado === 'AGOTADO' ? 'text-orange-500' : 'text-gray-400';
+  return `
+  <a href="Producto.html?id=${UI.esc(p.id)}" class="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm card-hover block">
+    <div class="relative h-36 sm:h-48 bg-gray-100 overflow-hidden">
+      <img src="${UI.img(p.imagen)}" alt="${UI.esc(p.nombre)}" loading="lazy" class="w-full h-full object-cover" onerror="this.src=UI.FALLBACK_IMG">
+      <span class="absolute top-3 left-3 bg-white/95 ${estadoColor} text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider shadow-sm">${p.estado === 'ACTIVO' ? 'Disponible' : UI.esc(p.estado)}</span>
+      ${p.vendedor_calificaciones > 0 ? `<span class="absolute top-3 right-3 bg-white/95 text-[#f59e0b] text-[11px] font-bold px-2 py-1 rounded-md shadow-sm">★ ${Number(p.vendedor_rating).toFixed(1)}</span>` : ''}
+    </div>
+    <div class="p-3 sm:p-4">
+      <p class="text-[10px] text-[#4fb877] font-bold uppercase tracking-wider mb-1 truncate">${UI.esc(p.categoria)}</p>
+      <h3 class="font-bold text-[#0B2319] mb-1 text-sm leading-tight line-clamp-2">${UI.esc(p.nombre)}</h3>
+      <p class="text-xs text-gray-400 mb-3 truncate">📍 ${UI.esc(p.ubicacion || p.vendedor_ubicacion || '')}</p>
+      <p class="text-lg sm:text-xl font-bold text-[#2E6B42] leading-none">${UI.money0(p.precio)}</p>
+      <p class="text-[10px] text-gray-400 mt-1 uppercase font-semibold">por ${UI.esc(p.unidad)} · Stock ${Number(p.stock).toLocaleString('es-MX')}</p>
+      <p class="text-[11px] text-gray-500 mt-2 truncate">${UI.esc(p.vendedor_nombre)}</p>
+      <div class="mt-1.5 flex flex-wrap gap-1">${UI.insignias(p, { chico: true })}</div>
+    </div>
+  </a>`;
+}
+
+let timer = null, peticion = 0;
+function filterProductos() {
+  clearTimeout(timer);
+  timer = setTimeout(cargar, 250);
+}
+async function cargar() {
+  const id = ++peticion;
+  const filtros = {
+    q: document.getElementById('search-input').value.trim(),
+    categoria: document.getElementById('filter-cat').value,
+    estado: document.getElementById('filter-estado').value,
+    orden: document.getElementById('filter-orden').value,
+    directo: document.getElementById('filter-directo').checked ? 1 : '',
+    vendedor,
+  };
+  try {
+    const lista = await AGRO_DB.buscarProductos(filtros);
+    if (id !== peticion) return;
+    renderGrid(lista);
+  } catch (e) {
+    document.getElementById('resultado-count').textContent = e.message;
+  }
+}
+function renderGrid(list) {
+  const grid = document.getElementById('productos-grid');
+  grid.innerHTML = list.map(productoCard).join('');
+  const n = list.length;
+  document.getElementById('resultado-count').textContent = `${n} producto${n !== 1 ? 's' : ''} encontrado${n !== 1 ? 's' : ''}`;
+  document.getElementById('empty-state').style.display = n === 0 ? 'flex' : 'none';
+  grid.style.display = n > 0 ? 'grid' : 'none';
+}
+function clearSearch() {
+  document.getElementById('search-input').value = '';
+  document.getElementById('filter-cat').value = '';
+  document.getElementById('filter-estado').value = '';
+  quitarVendedor();
+}
+function quitarVendedor() {
+  vendedor = '';
+  document.getElementById('filtro-vendedor').classList.add('hidden');
+  history.replaceState(null, '', 'Catalogo.html');
+  cargar();
+}
+
+(async () => {
+  document.getElementById('search-input').value = params.get('q') || '';
+  document.getElementById('search-input').addEventListener('input', filterProductos);
+  if (params.get('directo')) document.getElementById('filter-directo').checked = true;
+  UI.anuncios(document.getElementById('anuncios'), 'CATALOGO');
+  ['filter-cat', 'filter-estado', 'filter-orden', 'filter-directo'].forEach(id => document.getElementById(id).addEventListener('change', cargar));
+  ['plátano', 'mango', 'cacao', 'chile', 'maíz', 'tractor', 'riego'].forEach(t => {
+    const b = document.createElement('button');
+    b.className = 'tag-chip px-3 py-1.5 rounded-full border border-gray-200 bg-white text-xs text-gray-500 font-medium shadow-sm';
+    b.textContent = t;
+    b.onclick = () => { document.getElementById('search-input').value = t; cargar(); };
+    document.getElementById('quick-tags').appendChild(b);
+  });
+  try {
+    const cats = await AGRO_DB.getCategorias();
+    const sel = document.getElementById('filter-cat');
+    cats.filter(c => c.tipo !== 'TERRENO').forEach(c => sel.insertAdjacentHTML('beforeend',
+      `<option value="${UI.esc(c.nombre)}">${UI.esc(c.nombre)} (${c.productos})</option>`));
+    if (params.get('categoria')) sel.value = params.get('categoria');
+  } catch (_) { /* sin categorías */ }
+  if (vendedor) {
+    const box = document.getElementById('filtro-vendedor');
+    box.classList.remove('hidden');
+    box.innerHTML = `<span class="inline-flex items-center gap-2 bg-[#2E6B42] text-white text-xs font-semibold px-3 py-1.5 rounded-full">
+      Productos de ${UI.esc(params.get('nombre') || 'este vendedor')} <button onclick="quitarVendedor()" class="opacity-80">✕</button></span>`;
+  }
+  cargar();
+})();
+</script>
+<script src="Barra_Lateral.js"></script>
+</body>
+</html>

@@ -1,0 +1,69 @@
+# PostgreSQL 16 + PostGIS — StatefulSet con volumen persistente
+apiVersion: v1
+kind: Service
+metadata:
+  name: agroconnecta-db
+  namespace: agroconnecta
+  labels: { app: agroconnecta-db }
+spec:
+  clusterIP: None            # servicio "headless": solo accesible dentro del clúster
+  selector: { app: agroconnecta-db }
+  ports:
+    - name: postgres
+      port: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: agroconnecta-db
+  namespace: agroconnecta
+spec:
+  serviceName: agroconnecta-db
+  replicas: 1
+  selector:
+    matchLabels: { app: agroconnecta-db }
+  template:
+    metadata:
+      labels: { app: agroconnecta-db, tier: datos }
+    spec:
+      securityContext:
+        fsGroup: 999
+      containers:
+        - name: postgres
+          image: agroconnecta/db:3.0          # docker compose build  (o súbela a tu registro)
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5432
+          env:
+            - { name: POSTGRES_DB, value: agroconnecta }
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+            - name: POSTGRES_USER
+              valueFrom: { secretKeyRef: { name: agroconnecta-secretos, key: DB_ADMIN_USER } }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: agroconnecta-secretos, key: DB_ADMIN_PASSWORD } }
+            - name: APP_DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: agroconnecta-secretos, key: DB_APP_PASSWORD } }
+            - name: READONLY_DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: agroconnecta-secretos, key: DB_READONLY_PASSWORD } }
+          readinessProbe:
+            exec: { command: ["sh", "-c", "pg_isready -h 127.0.0.1 -U \"$POSTGRES_USER\" -d agroconnecta"] }
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            exec: { command: ["sh", "-c", "pg_isready -h 127.0.0.1 -U \"$POSTGRES_USER\" -d agroconnecta"] }
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: "1",  memory: 1Gi }
+          volumeMounts:
+            - name: datos
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: datos
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi

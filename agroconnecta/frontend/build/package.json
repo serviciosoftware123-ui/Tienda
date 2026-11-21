@@ -1,0 +1,10 @@
+{
+  "name": "agroconnecta-frontend-build",
+  "private": true,
+  "description": "Compila Tailwind CSS a ../css/app.css (solo se necesita si cambias clases en los HTML)",
+  "scripts": {
+    "css": "tailwindcss -c tailwind.config.js -i ../css/app.src.css -o ../css/app.css --minify",
+    "css:watch": "tailwindcss -c tailwind.config.js -i ../css/app.src.css -o ../css/app.css --watch"
+  },
+  "devDependencies": { "tailwindcss": "^3.4.17" }
+}

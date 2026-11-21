@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Perfil - AgroConnecta</title>
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="icon" href="img/favicon.svg">
+<script src="js/api.js"></script>
+<script src="agro_data.js"></script>
+<script src="vendor/leaflet/leaflet.js"></script>
+<style>.tab-btn.active { background:#fff; color:#0B2319; font-weight:600; box-shadow:0 1px 3px rgba(0,0,0,.08); }</style>
+</head>
+<body class="bg-[#F8F7F2] flex min-h-screen">
+<div id="sidebar-root" data-page="perfil"></div>
+
+<!-- Perfil público:  Perfil.html?vendedor=<id_vendedor>  ·  Perfil.html?comprador=<id_comprador>
+     Sin parámetro → tu propio perfil.
+     GET /api/perfiles/vendedor/:id  ·  GET /api/perfiles/comprador/:id (con sesión) -->
+<main class="flex-1 p-8 overflow-y-auto min-w-0">
+  <div id="contenido" class="max-w-6xl"><div class="skeleton h-56 mb-6"></div><div class="skeleton h-24"></div></div>
+</main>
+
+<script>
+const params = new URLSearchParams(location.search);
+const s = API.getSession();
+const NIVEL = { BRONCE: '🥉 Bronce', PLATA: '🥈 Plata', ORO: '🥇 Oro', PLATINO: '💎 Platino' };
+const C = document.getElementById('contenido');
+
+function iniciales(t) { return String(t || '?').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase(); }
+function statBox(valor, etiqueta) {
+  return `<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5"><p class="text-2xl font-bold text-[#0B2319]">${valor}</p>
+    <p class="text-xs text-gray-400 mt-1">${etiqueta}</p></div>`;
+}
+function barras(r) {
+  return [5, 4, 3, 2, 1].map(n => {
+    const c = r.distribucion[n] || 0, pct = r.total ? Math.round(c / r.total * 100) : 0;
+    return `<div class="flex items-center gap-2 text-xs text-gray-500"><span class="w-3 text-right">${n}</span><span class="text-[#f59e0b]">★</span>
+      <div class="flex-1 bg-gray-100 rounded-full h-2"><div class="bg-[#f59e0b] h-2 rounded-full" style="width:${pct}%"></div></div><span class="w-6">${c}</span></div>`;
+  }).join('');
+}
+function setTab(t) {
+  document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== t));
+  document.querySelectorAll('.tab-btn').forEach(b => { b.classList.toggle('active', b.dataset.tab === t); b.classList.toggle('text-gray-500', b.dataset.tab !== t); });
+}
+
+// ═══════════════ PERFIL DEL VENDEDOR ═══════════════
+async function perfilVendedor(id) {
+  const v = await API.get('/perfiles/vendedor/' + encodeURIComponent(id));
+  document.title = `${v.nombre_negocio} - AgroConnecta`;
+  const esYo = s && s.tipo_usuario === 'VENDEDOR' && s.id_rol === v.id_vendedor;
+  const esComprador = s && s.tipo_usuario === 'COMPRADOR';
+  const tel = v.contacto && v.contacto.telefono ? v.contacto.telefono.replace(/\D/g, '') : '';
+
+  C.innerHTML = `
+  <section class="bg-[#0B2319] text-white rounded-[28px] p-6 sm:p-10 mb-6 relative overflow-hidden">
+    <div class="absolute right-0 top-0 w-72 h-72 bg-[#2E6B42] rounded-full -mr-24 -mt-24 opacity-60"></div>
+    <div class="relative flex flex-col sm:flex-row gap-6 sm:items-center">
+      <div class="w-24 h-24 rounded-3xl bg-[#4fb877] flex items-center justify-center text-4xl font-bold text-[#0B2319] flex-shrink-0">${UI.esc(iniciales(v.nombre_negocio))}</div>
+      <div class="flex-1 min-w-0">
+        <p class="text-xs uppercase tracking-widest text-[#4fb877] font-semibold mb-1">🏪 Vendedor</p>
+        <h1 class="text-4xl font-serif leading-tight">${UI.esc(v.nombre_negocio)}</h1>
+        <div class="flex flex-wrap gap-1.5 mt-2">${UI.insignias(v)}</div>
+        <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-300 mt-2">
+          ${v.verificado ? '' : '<span class="text-yellow-300">Sin verificar</span>'}
+          <span>📍 ${UI.esc(v.ubicacion || 'Sin ubicación')}</span>
+          <span>👤 ${UI.esc(v.responsable)}</span>
+          <span>Miembro desde ${UI.fecha(v.miembro_desde)}</span>
+        </div>
+        ${v.descripcion ? `<p class="text-gray-300 text-sm mt-3 max-w-2xl">${UI.esc(v.descripcion)}</p>` : ''}
+      </div>
+      <div class="flex flex-col gap-2 sm:items-end">
+        <div class="flex items-center gap-2">${UI.stars(v.rating, 'w-6 h-6')}<span class="text-2xl font-bold">${Number(v.rating).toFixed(1)}</span></div>
+        <span class="text-xs text-gray-400">${v.total_calificaciones} reseña${v.total_calificaciones !== 1 ? 's' : ''} · ${NIVEL[v.score_nivel] || 'Bronce'}</span>
+        ${esYo ? `<a href="Tienda.html" class="mt-2 bg-[#4fb877] text-[#0B2319] px-4 py-2 rounded-xl text-sm font-semibold">Editar en Mi Tienda</a>`
+          : v.contacto ? `<div class="flex gap-2 mt-2">
+            ${tel ? `<a target="_blank" rel="noopener" href="https://wa.me/52${tel.slice(-10)}?text=${encodeURIComponent('Hola, vi tu tienda ' + v.nombre_negocio + ' en AgroConnecta.')}" class="bg-[#25D366] text-white px-4 py-2 rounded-xl text-sm font-semibold">WhatsApp</a>` : ''}
+            <a href="mailto:${UI.esc(v.contacto.email)}" class="bg-white/10 px-4 py-2 rounded-xl text-sm font-semibold">Correo</a></div>`
+          : !s ? `<a href="login.html?volver=${encodeURIComponent('Perfil.html' + location.search)}" class="mt-2 bg-white/10 px-4 py-2 rounded-xl text-sm">Inicia sesión para comprar</a>`
+          : v.contacto_oculto ? `<p class="mt-2 max-w-[240px] text-[11px] text-gray-400 sm:text-right">🔒 ${UI.esc(v.contacto_oculto)}. Así se protege a ambos y tu compra queda con pago protegido.</p>` : ''}
+      </div>
+    </div>
+  </section>
+
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    ${statBox(v.ventas, 'Ventas entregadas')}${statBox(v.productos.length, 'Productos publicados')}
+    ${statBox(v.terrenos.length, 'Terrenos')}${statBox(`${v.score_puntos || 0} pts`, 'Score AgroConfianza')}
+  </div>
+
+  ${(v.parcelas || []).length ? `<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
+    <p class="font-bold text-[#0B2319] mb-3">🌱 Parcelas registradas · ${v.superficie_ha} ha</p>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">${v.parcelas.map(pa => `<div class="bg-[#F3F9F6] rounded-xl p-3">
+      <p class="font-semibold text-[#0B2319] text-sm">${UI.esc(pa.nombre)}</p>
+      <p class="text-xs text-gray-500">${UI.esc(pa.superficie_ha)} ha de ${UI.esc(pa.cultivo)} · ${UI.esc(pa.municipio)} · ${UI.esc(String(pa.tenencia).toLowerCase())}</p></div>`).join('')}</div></div>` : ''}
+
+  <div id="calificar"></div>
+
+  <div class="bg-[#F3F4F1] rounded-xl p-1 flex gap-1 w-fit mb-6">
+    <button class="tab-btn active px-4 py-2 rounded-lg text-sm" data-tab="resenas" onclick="setTab('resenas')">Opiniones (${v.resumen.total})</button>
+    <button class="tab-btn px-4 py-2 rounded-lg text-sm text-gray-500" data-tab="productos" onclick="setTab('productos')">Productos (${v.productos.length})</button>
+    <button class="tab-btn px-4 py-2 rounded-lg text-sm text-gray-500" data-tab="terrenos" onclick="setTab('terrenos')">Terrenos (${v.terrenos.length})</button>
+  </div>
+
+  <div data-panel="resenas">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 h-fit">
+        <p class="text-5xl font-bold text-[#0B2319]">${v.resumen.total ? v.resumen.promedio.toFixed(1) : '—'}</p>
+        <div class="flex gap-0.5 my-2">${UI.stars(v.resumen.promedio, 'w-5 h-5')}</div>
+        <p class="text-xs text-gray-400 mb-4">${v.resumen.total} opinion${v.resumen.total !== 1 ? 'es' : ''}</p>
+        <div class="space-y-2">${barras(v.resumen)}</div>
+        ${v.lat ? '<div id="mapa-v" class="h-40 rounded-xl overflow-hidden border border-gray-100 mt-6"></div>' : ''}
+      </div>
+      <div class="lg:col-span-2 space-y-4">
+        ${v.resenas.length ? v.resenas.map(r => `
+          <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <div class="flex items-start justify-between gap-3 mb-2">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-full bg-[#2E6B42] text-white text-sm font-bold flex items-center justify-center">${UI.esc(iniciales(r.comprador))}</div>
+                <div>${s ? `<a href="Perfil.html?comprador=${UI.esc(r.id_comprador)}" class="font-semibold text-sm text-[#0B2319] hover:underline">${UI.esc(r.comprador)}</a>`
+                        : `<p class="font-semibold text-sm text-[#0B2319]">${UI.esc(r.comprador)}</p>`}
+                  <p class="text-xs text-gray-400">${UI.fecha(r.fecha)}</p></div>
+              </div>
+              <div class="flex gap-0.5">${UI.stars(r.puntuacion)}</div>
+            </div>
+            ${r.productos ? `<p class="text-[11px] text-gray-400 mb-1">Compró: ${UI.esc(r.productos)}</p>` : ''}
+            ${r.comentario ? `<p class="text-sm text-gray-600 leading-relaxed">${UI.esc(r.comentario)}</p>` : '<p class="text-sm text-gray-300 italic">Sin comentario</p>'}
+          </div>`).join('') : '<div class="bg-white rounded-2xl border border-gray-100 p-10 text-center text-gray-400 text-sm">Este vendedor aún no tiene opiniones.</div>'}
+      </div>
+    </div>
+  </div>
+
+  <div data-panel="productos" class="hidden">
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">${v.productos.map(p => `
+      <a href="Producto.html?id=${UI.esc(p.id)}" class="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm card-hover block">
+        <div class="h-36 bg-gray-100"><img src="${UI.img(p.imagen)}" class="w-full h-full object-cover" loading="lazy" onerror="this.src=UI.FALLBACK_IMG"></div>
+        <div class="p-4"><p class="text-[10px] text-[#4fb877] font-bold uppercase">${UI.esc(p.categoria)}</p>
+          <p class="font-bold text-sm text-[#0B2319] line-clamp-2">${UI.esc(p.nombre)}</p>
+          <p class="text-[#2E6B42] font-bold mt-1">${UI.money0(p.precio)} <span class="text-[10px] text-gray-400">/ ${UI.esc(p.unidad)}</span></p>
+          ${p.estado !== 'ACTIVO' ? `<p class="text-[10px] text-orange-500 font-bold mt-1">${UI.esc(p.estado)}</p>` : ''}</div></a>`).join('') || '<p class="text-gray-400 text-sm">Sin productos publicados.</p>'}</div>
+  </div>
+
+  <div data-panel="terrenos" class="hidden">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">${v.terrenos.map(t => `
+      <a href="Terrenos.html" class="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm card-hover block">
+        <div class="h-36 bg-gray-100"><img src="${UI.img(t.imagen)}" class="w-full h-full object-cover" onerror="this.src=UI.FALLBACK_IMG"></div>
+        <div class="p-4"><p class="font-bold text-sm text-[#0B2319]">${UI.esc(t.titulo)}</p>
+          <p class="text-xs text-gray-400">${UI.esc(t.ubicacion)} · ${t.superficie} ha · ${t.operacion === 'VENTA' ? 'Venta' : 'Renta'}</p>
+          <p class="text-[#2E6B42] font-bold mt-1">${UI.money0(t.precio)}</p></div></a>`).join('') || '<p class="text-gray-400 text-sm">Sin terrenos publicados.</p>'}</div>
+  </div>`;
+
+  // ── Tarjeta para opinar ──
+  const box = document.getElementById('calificar');
+  if (esComprador && v.por_calificar && v.por_calificar.length) {
+    box.innerHTML = `
+      <div id="form-opinion" class="bg-white rounded-2xl border-2 border-[#4fb877]/40 shadow-sm p-6 mb-6 scroll-mt-20">
+        <h3 class="font-bold text-[#0B2319] text-lg mb-1">Califica a ${UI.esc(v.nombre_negocio)}</h3>
+        <p class="text-sm text-gray-500 mb-4">Tu opinión ayuda a otros compradores. Solo se califica una vez por pedido entregado.</p>
+        ${v.por_calificar.length > 1 ? `<label class="agro-label">Pedido</label>
+          <select id="op-pedido" class="agro-input mb-4">${v.por_calificar.map(p => `<option value="${p.id_pedido}">#${p.folio} · ${UI.esc(p.productos)} · ${UI.fecha(p.fecha_pedido, false)}</option>`).join('')}</select>`
+          : `<p class="text-sm mb-4 bg-[#F3F9F6] rounded-xl px-4 py-2">Pedido <b>#${v.por_calificar[0].folio}</b> · ${UI.esc(v.por_calificar[0].productos)}</p>
+             <input type="hidden" id="op-pedido" value="${v.por_calificar[0].id_pedido}">`}
+        <label class="agro-label">¿Cuántas estrellas le das?</label>
+        <div id="op-estrellas" class="mb-4"></div>
+        <label class="agro-label">Tu opinión</label>
+        <textarea id="op-comentario" rows="3" maxlength="1000" class="agro-input mb-1" placeholder="¿Cómo fue la calidad del producto, la entrega y la atención?"></textarea>
+        <p class="text-[11px] text-gray-400 mb-4 text-right"><span id="op-cont">0</span>/1000</p>
+        <button id="op-enviar" class="btn-verde w-full sm:w-auto" disabled>Publicar opinión</button>
+      </div>`;
+    const picker = UI.starPicker(document.getElementById('op-estrellas'), 0, () => { document.getElementById('op-enviar').disabled = false; });
+    const ta = document.getElementById('op-comentario');
+    ta.oninput = () => document.getElementById('op-cont').textContent = ta.value.length;
+    document.getElementById('op-enviar').onclick = async () => {
+      const b = document.getElementById('op-enviar'); b.disabled = true; b.textContent = 'Publicando…';
+      try {
+        await API.post('/calificaciones', { id_pedido: document.getElementById('op-pedido').value, puntuacion: picker.valor, comentario: ta.value.trim() });
+        UI.toast('¡Gracias! Tu opinión ya está publicada');
+        render();
+      } catch (e) { UI.toast(e.message, 'error'); b.disabled = false; b.textContent = 'Publicar opinión'; }
+    };
+    if (location.hash === '#calificar') setTimeout(() => document.getElementById('form-opinion').scrollIntoView({ behavior: 'smooth' }), 100);
+  } else if (esComprador && v.compras_con_vendedor > 0) {
+    box.innerHTML = `<p class="bg-[#F3F9F6] text-[#2E6B42] text-sm rounded-2xl p-4 mb-6">Podrás calificar a este vendedor cuando te entregue tu pedido. <a href="Pedidos.html" class="font-semibold underline">Ver mis pedidos</a></p>`;
+  } else if (esComprador) {
+    box.innerHTML = `<p class="bg-gray-50 text-gray-500 text-sm rounded-2xl p-4 mb-6">Para dejar una opinión, primero compra a este vendedor. Así todas las reseñas son de compras reales.</p>`;
+  } else if (!s) {
+    box.innerHTML = `<p class="bg-gray-50 text-gray-500 text-sm rounded-2xl p-4 mb-6"><a class="text-[#2E6B42] font-semibold" href="login.html?volver=${encodeURIComponent('Perfil.html' + location.search)}">Inicia sesión</a> como comprador para opinar sobre este vendedor.</p>`;
+  }
+
+  if (v.lat && window.L) setTimeout(() => {
+    const m = L.map('mapa-v', { zoomControl: false, attributionControl: false }).setView([v.lat, v.lng], 10);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(m);
+    L.marker([v.lat, v.lng]).addTo(m);
+  }, 60);
+}
+
+// ═══════════════ PERFIL DEL COMPRADOR ═══════════════
+async function perfilComprador(id) {
+  if (!s) { location.href = 'login.html?volver=' + encodeURIComponent('Perfil.html' + location.search); return; }
+  const p = await API.get('/perfiles/comprador/' + encodeURIComponent(id));
+  document.title = `${p.nombre} - AgroConnecta`;
+  let pendientes = [];
+  if (p.es_yo) { try { pendientes = await API.get('/calificaciones/pendientes'); } catch (_) { /* nada */ } }
+
+  C.innerHTML = `
+  <section class="bg-[#F1EFE7] rounded-[28px] p-6 sm:p-10 mb-6 relative overflow-hidden">
+    <div class="absolute right-0 top-0 w-64 h-64 bg-[#E8E6DD] rounded-full -mr-20 -mt-20"></div>
+    <div class="relative flex flex-col sm:flex-row gap-6 sm:items-center">
+      <div class="w-24 h-24 rounded-full bg-[#2E6B42] flex items-center justify-center text-4xl font-bold text-white flex-shrink-0">${UI.esc(iniciales(p.nombre))}</div>
+      <div class="flex-1">
+        <p class="text-xs uppercase tracking-widest text-[#2E6B42] font-semibold mb-1">🛒 Comprador${p.es_yo ? ' · tu perfil' : ''}</p>
+        <h1 class="text-4xl font-serif text-[#0B2319]">${UI.esc(p.es_yo && s ? s.nombre + ' ' + s.apellido : p.nombre)}</h1>
+        <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500 mt-2">
+          ${p.ciudad ? `<span>📍 ${UI.esc(p.ciudad)}</span>` : ''}
+          <span>Miembro desde ${UI.fecha(p.miembro_desde)}</span>
+          <span class="font-semibold text-[#0B2319]">${NIVEL[p.nivel] || p.nivel} · ${p.puntos} pts</span>
+        </div>
+      </div>
+      ${p.es_yo ? `<div class="flex gap-2"><button onclick="agroMiCuenta()" class="btn-borde">Editar mis datos</button>
+        <a href="Pedidos.html" class="btn-verde">Mis pedidos</a></div>` : ''}
+    </div>
+  </section>
+
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    ${statBox(p.compras_entregadas, 'Compras completadas')}${statBox(p.vendedores_distintos, 'Vendedores distintos')}
+    ${statBox(p.resenas_escritas, 'Opiniones escritas')}${statBox(p.compras_canceladas, 'Pedidos cancelados')}
+  </div>
+
+  ${pendientes.length ? `<div class="bg-white rounded-2xl border-2 border-[#4fb877]/40 p-6 mb-6">
+    <h3 class="font-bold text-[#0B2319] mb-3">Tienes ${pendientes.length} pedido${pendientes.length > 1 ? 's' : ''} por calificar</h3>
+    <div class="space-y-2">${pendientes.map(x => `<div class="flex items-center justify-between gap-3 flex-wrap border-b border-gray-50 pb-2">
+      <p class="text-sm"><b>#${x.folio}</b> · ${UI.esc(x.vendedor_nombre)} · <span class="text-gray-400">${UI.esc(x.productos)}</span></p>
+      <a href="Perfil.html?vendedor=${UI.esc(x.id_vendedor)}#calificar" class="btn-verde !py-2 text-xs">★ Calificar</a></div>`).join('')}</div></div>` : ''}
+
+  <h3 class="font-bold text-[#0B2319] mb-3">Opiniones que ha escrito ${p.resumen.total ? `<span class="font-normal text-gray-400 text-sm">· promedio que da: ${p.resumen.promedio.toFixed(1)} ★</span>` : ''}</h3>
+  <div class="space-y-4">${p.resenas.length ? p.resenas.map(r => `
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <div class="flex items-start justify-between gap-3 mb-2">
+        <div><a href="Perfil.html?vendedor=${UI.esc(r.id_vendedor)}" class="font-semibold text-sm text-[#0B2319] hover:underline">🏪 ${UI.esc(r.vendedor_nombre)}</a>
+          <p class="text-xs text-gray-400">${UI.fecha(r.fecha)} · ${UI.esc(r.productos || '')}</p></div>
+        <div class="flex gap-0.5">${UI.stars(r.puntuacion)}</div>
+      </div>
+      ${r.comentario ? `<p class="text-sm text-gray-600">${UI.esc(r.comentario)}</p>` : ''}
+    </div>`).join('') : '<div class="bg-white rounded-2xl border border-gray-100 p-10 text-center text-gray-400 text-sm">Todavía no ha escrito opiniones.</div>'}</div>`;
+}
+
+async function render() {
+  try {
+    if (params.get('vendedor')) return await perfilVendedor(params.get('vendedor'));
+    if (params.get('comprador')) return await perfilComprador(params.get('comprador'));
+    if (!s) { location.href = 'login.html?volver=Perfil.html'; return; }
+    if (s.tipo_usuario === 'VENDEDOR') return await perfilVendedor(s.id_rol);
+    if (s.tipo_usuario === 'COMPRADOR') return await perfilComprador(s.id_rol);
+    C.innerHTML = `<div class="text-center py-20"><p class="text-gray-500 mb-4">Los administradores no tienen perfil público.</p>
+      <button onclick="agroMiCuenta()" class="btn-verde">Mi cuenta</button></div>`;
+  } catch (e) {
+    C.innerHTML = `<div class="text-center py-20 text-gray-400">${UI.esc(e.message)}</div>`;
+  }
+}
+render();
+</script>
+<script src="Barra_Lateral.js"></script>
+</body>
+</html>

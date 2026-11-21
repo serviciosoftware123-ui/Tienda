@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agroconnecta-config
+  namespace: agroconnecta
+data:
+  DB_HOST: agroconnecta-db
+  DB_NAME: agroconnecta
+  DB_USER: agro_app
+  # Cambia por tu dominio cuando lo tengas (ej. https://agroconnecta.mx)
+  PUBLIC_URL: "http://agroconnecta.local"
+  SEED_ADMIN_EMAIL: admin@agroconnecta.mx
+  PAGO_SIMULADO: "true"
+  # El flete, las comisiones y la custodia se configuran en la BD (Administración → Parámetros)
+  VERSION_AVISO: "2026-11"
+  TRUST_PROXY: "2"
+  TZ: America/Mexico_City

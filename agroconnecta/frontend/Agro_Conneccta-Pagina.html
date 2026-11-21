@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgroConnecta - Inicio</title>
+    <link rel="stylesheet" href="css/app.css">
+    <link rel="icon" href="img/favicon.svg">
+    <script src="js/api.js"></script>
+    <script src="agro_data.js"></script>
+</head>
+<body class="bg-[#F8F7F2] flex min-h-screen">
+
+    <div id="sidebar-root" data-page="inicio"></div>
+
+    <main class="flex-1 p-8 overflow-y-auto min-w-0">
+
+        <!-- Hero -->
+        <section class="bg-[#F1EFE7] rounded-[32px] sm:rounded-[40px] p-7 sm:p-12 mb-8 relative overflow-hidden">
+            <div class="max-w-2xl relative z-10">
+                <div class="flex items-center gap-2 text-[#2E6B42] mb-6 uppercase tracking-widest text-xs font-semibold">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+                    <span id="saludo">AgroConnecta · Prueba piloto</span>
+                </div>
+                <h2 class="text-6xl font-serif text-[#0B2319] leading-tight mb-4">Compra, vende y distribuye productos agrícolas</h2>
+                <p class="text-gray-600 text-lg mb-8 max-w-lg">Conectamos directamente a productores y compradores del sureste: un precio más justo para el campo, trazabilidad en cada venta y un historial que respalda el acceso al crédito.</p>
+                <div class="flex flex-wrap gap-3" id="hero-botones">
+                    <a href="Catalogo.html" class="bg-[#2E6B42] text-white px-7 py-3.5 rounded-xl font-semibold flex items-center gap-2 hover:bg-[#245534] transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+                        Explorar Catálogo
+                    </a>
+                    <a href="Terrenos.html" class="bg-white border border-gray-200 text-[#0B2319] px-7 py-3.5 rounded-xl font-semibold flex items-center gap-2 hover:bg-gray-50 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+                        Ver Terrenos
+                    </a>
+                </div>
+            </div>
+            <div class="absolute right-0 top-0 w-64 h-64 bg-[#E8E6DD] rounded-full -mr-20 -mt-20 opacity-50"></div>
+            <div class="absolute left-0 bottom-0 w-32 h-32 bg-[#E8E6DD] rounded-full -ml-10 -mb-10 opacity-50"></div>
+        </section>
+
+        <!-- Estadísticas en vivo (GET /api/stats → vista v_estadisticas_publicas) -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mb-12" id="stats">
+            <div class="skeleton h-24"></div><div class="skeleton h-24"></div><div class="skeleton h-24"></div><div class="skeleton h-24"></div>
+        </div>
+
+        <!-- Publicidad local (proveedores de insumos) -->
+        <div id="anuncios" class="mb-12"></div>
+
+        <!-- Productos recientes -->
+        <div class="flex justify-between items-end mb-6">
+            <div>
+                <h3 class="text-2xl font-serif text-[#0B2319]">Productos Destacados</h3>
+                <p class="text-gray-500 text-sm">De productores verificados · ★ Premium primero</p>
+            </div>
+            <a href="Catalogo.html" class="text-[#2E6B42] font-semibold text-sm flex items-center gap-1 hover:underline">Ver todos
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+            </a>
+        </div>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-12" id="destacados">
+            <div class="skeleton h-64"></div><div class="skeleton h-64"></div><div class="skeleton h-64"></div><div class="skeleton h-64"></div>
+        </div>
+
+        <!-- Cómo funciona (los candados del plan de negocio) -->
+        <h3 class="text-2xl font-serif text-[#0B2319] mb-6">¿Cómo funciona?</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-10">
+            <div class="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+                <div class="w-10 h-10 rounded-xl bg-[#F3F9F6] text-[#2E6B42] font-bold flex items-center justify-center mb-3">1</div>
+                <p class="font-bold text-[#0B2319] mb-1">El productor se verifica</p>
+                <p class="text-sm text-gray-500">Registro gratis. Sube su INE, comprobante y documento de su parcela; con la insignia <b>Productor Verificado</b> sus productos se publican.</p>
+            </div>
+            <div class="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+                <div class="w-10 h-10 rounded-xl bg-[#F3F9F6] text-[#2E6B42] font-bold flex items-center justify-center mb-3">2</div>
+                <p class="font-bold text-[#0B2319] mb-1">El comprador paga protegido</p>
+                <p class="text-sm text-gray-500">SPEI, tarjeta, efectivo o a plazos. El pago en línea queda <b>en custodia</b> hasta que confirmas que recibiste tu pedido.</p>
+            </div>
+            <div class="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+                <div class="w-10 h-10 rounded-xl bg-[#F3F9F6] text-[#2E6B42] font-bold flex items-center justify-center mb-3">3</div>
+                <p class="font-bold text-[#0B2319] mb-1">Entrega con transportista aliado</p>
+                <p class="text-sm text-gray-500">Flete calculado por kilómetro desde la parcela. Sigues tu pedido paso a paso y, si llega mal, se reembolsa.</p>
+            </div>
+            <div class="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+                <div class="w-10 h-10 rounded-xl bg-[#F3F9F6] text-[#2E6B42] font-bold flex items-center justify-center mb-3">4</div>
+                <p class="font-bold text-[#0B2319] mb-1">Historial para el crédito</p>
+                <p class="text-sm text-gray-500">48 h después de tu confirmación el productor recibe su pago (menos 4 % de comisión) y suma historial para su <b>Reporte AgroConfianza</b>.</p>
+            </div>
+        </div>
+        <div class="bg-[#0B2319] text-white rounded-3xl p-6 sm:p-8 grid md:grid-cols-3 gap-6 items-center">
+            <div class="md:col-span-2"><p class="text-xs uppercase tracking-widest text-[#4fb877] font-bold">Para productores</p>
+                <p class="text-2xl font-serif mt-1">Registrarte y publicar es gratis. Solo pagas 4 % cuando vendes.</p>
+                <p class="text-sm text-gray-300 mt-2">Menos de la mitad de lo que cobran los marketplaces genéricos. Con Premium ($199 + IVA/mes) apareces primero y obtienes tu Reporte AgroConfianza.</p></div>
+            <a href="login.html?registro=1" class="bg-[#4fb877] text-[#0B2319] font-semibold rounded-xl px-6 py-3.5 text-center hover:bg-[#3ea866]">Quiero vender</a>
+        </div>
+    </main>
+
+    <script>
+        const ICON = {
+            productos: 'M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z',
+            terrenos: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z',
+            pedidos: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+            vendedores: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z',
+        };
+        function stat(label, n, sub, icon) {
+            return `<div class="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 flex items-center justify-between shadow-sm">
+                <div><p class="text-gray-400 text-sm mb-1">${label}</p>
+                  <div class="flex items-baseline gap-1"><span class="text-3xl font-bold text-[#0B2319]">${UI.esc(n)}</span>
+                  <span class="text-xs text-gray-500 font-medium">${sub}</span></div></div>
+                <div class="bg-[#F3F9F6] p-3 rounded-xl hidden sm:block"><svg class="w-6 h-6 text-[#2E6B42]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${icon}"/></svg></div>
+            </div>`;
+        }
+        function card(p) {
+            return `<a href="Producto.html?id=${UI.esc(p.id)}" class="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm card-hover block">
+                <div class="h-32 sm:h-40 bg-gray-100"><img src="${UI.img(p.imagen)}" alt="" class="w-full h-full object-cover" loading="lazy" onerror="this.src=UI.FALLBACK_IMG"></div>
+                <div class="p-4">
+                  <p class="text-[10px] text-[#4fb877] font-bold uppercase tracking-wider mb-1">${UI.esc(p.categoria)}</p>
+                  <p class="font-bold text-[#0B2319] text-sm leading-tight line-clamp-2">${UI.esc(p.nombre)}</p>
+                  <p class="text-[#2E6B42] font-bold mt-2">${UI.money0(p.precio)} <span class="text-[10px] text-gray-400 font-semibold uppercase">/ ${UI.esc(p.unidad)}</span></p>
+                  <p class="text-[11px] text-gray-400 truncate">${UI.esc(p.vendedor_nombre)}</p>
+                </div></a>`;
+        }
+        (async () => {
+            const s = API.getSession();
+            if (s) {
+                document.getElementById('saludo').textContent = `Hola, ${s.nombre}`;
+                if (s.tipo_usuario === 'VENDEDOR') {
+                    document.getElementById('hero-botones').insertAdjacentHTML('afterbegin',
+                        `<a href="Tienda.html" class="bg-[#f59e0b] text-[#0B2319] px-7 py-3.5 rounded-xl font-semibold hover:bg-[#e8930a]">Ir a Mi Tienda</a>`);
+                }
+            }
+            try {
+                const st = await AGRO_DB.getStats();
+                document.getElementById('stats').innerHTML =
+                    stat('Productos', st.productos, 'Activos', ICON.productos) + stat('Terrenos', st.terrenos, 'Disponibles', ICON.terrenos) +
+                    stat('Pedidos', st.pedidos, 'Totales', ICON.pedidos) + stat('Vendedores', st.vendedores, 'Registrados', ICON.vendedores);
+                const prods = await AGRO_DB.buscarProductos({ limit: 4, estado: 'ACTIVO' });
+                document.getElementById('destacados').innerHTML = prods.length ? prods.map(card).join('')
+                    : '<p class="text-gray-400 col-span-4">Aún no hay productos publicados.</p>';
+            } catch (e) {
+                document.getElementById('stats').innerHTML = `<p class="col-span-4 text-red-500 text-sm">${UI.esc(e.message)}</p>`;
+            }
+        })();
+    UI.anuncios(document.getElementById('anuncios'), 'INICIO');
+</script>
+    <script src="Barra_Lateral.js"></script>
+</body>
+</html>

@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgroConnecta – Acceder</title>
+<link rel="stylesheet" href="css/app.css">
+<link rel="icon" href="img/favicon.svg">
+<style>
+  * { box-sizing: border-box; }
+  body { background: #0B2319; min-height: 100vh; }
+  .font-serif { font-family: 'DM Serif Display', serif; }
+
+  .bg-panel {
+    background: radial-gradient(ellipse at 20% 80%, rgba(79,184,119,0.15) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 20%, rgba(46,107,66,0.2) 0%, transparent 55%),
+                #0B2319;
+  }
+
+  .card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.10);
+    backdrop-filter: blur(20px);
+    border-radius: 24px;
+  }
+
+  .tab-active {
+    background: #4fb877;
+    color: #0B2319;
+    font-weight: 600;
+  }
+
+  .input-field {
+    width: 100%;
+    padding: 12px 16px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 12px;
+    color: #fff;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .input-field:focus { border-color: #4fb877; }
+  .input-field::placeholder { color: rgba(255,255,255,0.3); }
+
+  .btn-primary {
+    width: 100%;
+    padding: 13px;
+    background: #4fb877;
+    color: #0B2319;
+    font-weight: 600;
+    font-size: 15px;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .btn-primary:hover { background: #3ea866; }
+  .btn-primary:active { transform: scale(0.99); }
+  .btn-primary:disabled { background: #2a5c38; color: rgba(255,255,255,0.4); cursor: not-allowed; }
+
+  .btn-google {
+    width: 100%;
+    padding: 12px;
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    font-weight: 500;
+    font-size: 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.14);
+    cursor: pointer;
+    transition: background 0.2s;
+    font-family: 'DM Sans', sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+  .btn-google:hover { background: rgba(255,255,255,0.14); }
+
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: rgba(255,255,255,0.25);
+    font-size: 12px;
+  }
+  .divider::before, .divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(255,255,255,0.10);
+  }
+
+  .role-chip {
+    flex: 1;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: transparent;
+    color: rgba(255,255,255,0.5);
+    font-size: 13px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .role-chip.selected {
+    border-color: #4fb877;
+    background: rgba(79,184,119,0.15);
+    color: #4fb877;
+    font-weight: 500;
+  }
+
+  .label { color: rgba(255,255,255,0.6); font-size: 13px; margin-bottom: 6px; display: block; }
+
+  .pattern {
+    position: fixed;
+    inset: 0;
+    opacity: 0.03;
+    background-image: repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(255,255,255,1) 39px, rgba(255,255,255,1) 40px),
+                      repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(255,255,255,1) 39px, rgba(255,255,255,1) 40px);
+    pointer-events: none;
+  }
+
+  .alert-error {
+    background: rgba(239,68,68,0.15);
+    border: 1px solid rgba(239,68,68,0.3);
+    color: #fca5a5;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 13px;
+    display: none;
+  }
+  .alert-success {
+    background: rgba(79,184,119,0.15);
+    border: 1px solid rgba(79,184,119,0.3);
+    color: #86efac;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 13px;
+    display: none;
+  }
+
+  select.input-field option { background: #1a3a2a; }
+</style>
+</head>
+<body class="bg-panel flex items-center justify-center min-h-screen p-4">
+<div class="pattern"></div>
+
+<div class="w-full max-w-md relative z-10 py-6">
+
+  <a href="Agro_Conneccta-Pagina.html" class="flex items-center gap-3 mb-8 justify-center">
+    <div class="bg-[#4fb877] p-2 rounded-xl">
+      <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
+      </svg>
+    </div>
+    <div>
+      <h1 class="font-bold text-white text-lg leading-none">AgroConnecta</h1>
+      <span class="text-xs text-[#4fb877] uppercase tracking-widest">Sureste</span>
+    </div>
+  </a>
+
+  <div class="card p-6 sm:p-8">
+    <div class="flex bg-white/5 rounded-xl p-1 gap-1 mb-7">
+      <button id="tab-login" onclick="setTab('login')" class="flex-1 py-2.5 rounded-lg text-sm transition-all tab-active">Iniciar sesión</button>
+      <button id="tab-register" onclick="setTab('register')" class="flex-1 py-2.5 rounded-lg text-sm text-white/50 transition-all">Crear cuenta</button>
+    </div>
+
+    <!-- ── LOGIN ─────────────────────────────────────────────
+         POST /api/auth/login { email, password }
+         La BD compara el hash bcrypt (pgcrypto) y bloquea 15 min tras 5 intentos.
+         Devuelve un JWT; la BD guarda solo su hash SHA-256 en la tabla SESION. -->
+    <form id="form-login" onsubmit="doLogin(event)" autocomplete="on">
+      <div class="space-y-4">
+        <div>
+          <label class="label" for="login-email">Correo electrónico</label>
+          <input type="email" class="input-field" placeholder="tu@correo.com" id="login-email" autocomplete="username" required>
+        </div>
+        <div>
+          <label class="label" for="login-pass">Contraseña</label>
+          <input type="password" class="input-field" placeholder="••••••••" id="login-pass" autocomplete="current-password" required>
+        </div>
+        <div id="login-error" class="alert-error"></div>
+        <button class="btn-primary" id="btn-login" type="submit">Entrar</button>
+      </div>
+    </form>
+
+    <!-- ── VERIFICACIÓN EN DOS PASOS ─────────────────────────
+         Si el usuario activó 2FA, /api/auth/login devuelve un pase temporal (5 min)
+         y aquí se pide el código TOTP de 6 dígitos → POST /api/auth/login/2fa -->
+    <form id="form-2fa" class="hidden" onsubmit="do2fa(event)">
+      <div class="space-y-4 text-center">
+        <div class="w-14 h-14 mx-auto rounded-2xl bg-[#4fb877]/15 flex items-center justify-center text-2xl">🔐</div>
+        <div><p class="text-white font-semibold">Verificación en dos pasos</p>
+          <p class="text-white/50 text-sm mt-1">Escribe el código de 6 dígitos de tu app de autenticación.</p></div>
+        <input id="codigo-2fa" class="input-field text-center text-2xl tracking-[.5em]" inputmode="numeric" autocomplete="one-time-code"
+               maxlength="6" pattern="[0-9]{6}" placeholder="000000" required>
+        <div id="error-2fa" class="alert-error text-left"></div>
+        <button class="btn-primary" id="btn-2fa" type="submit">Verificar</button>
+        <button type="button" onclick="cancelar2fa()" class="text-white/40 text-xs underline">Usar otra cuenta</button>
+      </div>
+    </form>
+
+    <!-- ── REGISTRO ──────────────────────────────────────────
+         POST /api/auth/register → la función fn_registrar_usuario() crea USUARIO +
+         COMPRADOR/VENDEDOR + SCORE_AGROCONFIANZA en una sola transacción.
+         Teléfono y RFC viajan a la API y se guardan cifrados (AES-256-GCM). -->
+    <form id="form-register" class="hidden" onsubmit="doRegister(event)" autocomplete="on">
+      <div class="space-y-4">
+        <div>
+          <span class="label">Tipo de cuenta</span>
+          <div class="flex gap-2 mt-1">
+            <button type="button" class="role-chip selected" id="chip-comprador" onclick="selectRole('COMPRADOR')">🛒 Quiero comprar</button>
+            <button type="button" class="role-chip" id="chip-vendedor" onclick="selectRole('VENDEDOR')">🏪 Quiero vender</button>
+          </div>
+          <input type="hidden" id="reg-role" value="COMPRADOR">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="label" for="reg-nombre">Nombre</label>
+            <input type="text" class="input-field" placeholder="Juan" id="reg-nombre" autocomplete="given-name" required maxlength="100"></div>
+          <div><label class="label" for="reg-apellido">Apellido</label>
+            <input type="text" class="input-field" placeholder="Pérez" id="reg-apellido" autocomplete="family-name" required maxlength="100"></div>
+        </div>
+        <div><label class="label" for="reg-email">Correo electrónico</label>
+          <input type="email" class="input-field" placeholder="tu@correo.com" id="reg-email" autocomplete="email" required maxlength="150"></div>
+        <div><label class="label" for="reg-tel">Teléfono / WhatsApp <span class="text-white/30">(opcional)</span></label>
+          <input type="tel" class="input-field" placeholder="993 123 4567" id="reg-tel" autocomplete="tel" inputmode="tel" maxlength="20"></div>
+
+        <div id="campo-mun-comprador"><label class="label" for="reg-mun-comp">Municipio de entrega <span class="text-white/30">(para calcular el flete)</span></label>
+          <select class="input-field" id="reg-mun-comp"></select></div>
+
+        <div id="campos-vendedor" class="space-y-4 hidden">
+          <div>
+            <span class="label">¿Cómo vendes?</span>
+            <div class="flex gap-2 mt-1">
+              <button type="button" class="role-chip selected" id="chip-productor" onclick="selectPerfil('PRODUCTOR')">🌱 Productor<br><span class="text-[10px] opacity-70">vendo lo que cosecho · 4 %</span></button>
+              <button type="button" class="role-chip" id="chip-acopiador" onclick="selectPerfil('ACOPIADOR')">🚚 Acopiador<br><span class="text-[10px] opacity-70">compro y revendo · 8 %</span></button>
+            </div>
+            <input type="hidden" id="reg-perfil" value="PRODUCTOR">
+            <p class="text-white/40 text-[11px] mt-2 leading-snug">Registrarte y publicar es gratis. Solo cobramos comisión cuando vendes.
+              Para que tus productos se vean necesitas la insignia <b class="text-[#4fb877]">Productor Verificado</b> (INE, comprobante de domicilio y documento de tu parcela).</p>
+          </div>
+          <div><label class="label" for="reg-negocio">Nombre de tu negocio o rancho</label>
+            <input type="text" class="input-field" placeholder="Ej. Huerta Los Ríos" id="reg-negocio" maxlength="200"></div>
+          <div><label class="label" for="reg-municipio">Municipio</label>
+            <select class="input-field" id="reg-municipio"></select></div>
+          <div><label class="label" for="reg-rfc">RFC <span class="text-white/30">(opcional · se guarda cifrado)</span></label>
+            <input type="text" class="input-field uppercase" placeholder="XAXX010101000" id="reg-rfc" maxlength="13"></div>
+        </div>
+
+        <div><label class="label" for="reg-pass">Contraseña</label>
+          <input type="password" class="input-field" placeholder="Mínimo 8 caracteres, letras y números" id="reg-pass" autocomplete="new-password" required minlength="8"></div>
+        <!-- Aviso de privacidad simplificado (LFPDPPP 2025): se muestra al registrarse, con enlace al completo -->
+        <div class="rounded-xl bg-white/5 border border-white/10 p-3 text-[11px] text-white/55 leading-relaxed">
+          <b class="text-white/80">Aviso de privacidad simplificado.</b> AgroConnecta Sureste usa tu nombre, correo y teléfono para
+          crear tu cuenta, procesar pedidos y pagos, y dar seguimiento a envíos. Si vendes, también tus documentos de verificación
+          (se guardan cifrados y solo los revisa un administrador). No vendemos tus datos. Puedes ejercer tus derechos ARCO
+          escribiendo a privacidad@agroconnecta.mx. <a href="Privacidad.html" target="_blank" class="underline text-[#4fb877]">Aviso completo</a>
+        </div>
+        <label class="flex items-start gap-2 text-sm text-white/70 cursor-pointer">
+          <input type="checkbox" id="reg-acepto" class="mt-1 accent-[#4fb877]" required>
+          <span>Acepto el <a href="Privacidad.html" target="_blank" class="underline">aviso de privacidad</a> y los
+            <a href="Terminos.html" target="_blank" class="underline">términos y condiciones</a>.</span>
+        </label>
+        <div id="reg-error" class="alert-error"></div>
+        <button class="btn-primary" id="btn-register" type="submit">Crear cuenta</button>
+      </div>
+    </form>
+  </div>
+
+  <p class="text-center text-xs text-white/30 mt-6">
+    Prueba piloto · AgroConnecta Sureste &copy; 2026 · <a href="Agro_Conneccta-Pagina.html" class="underline">Ver el catálogo sin cuenta</a>
+  </p>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/municipios.js"></script>
+<script>
+  const sel = document.getElementById('reg-municipio');
+  sel.innerHTML = opcionesMunicipios();
+  document.getElementById('reg-mun-comp').innerHTML = opcionesMunicipios();
+  let pase2fa = null;
+
+  const params = new URLSearchParams(location.search);
+  const volver = params.get('volver');
+  function destino(s) {
+    if (volver && /^[A-Za-z_-]+\.html(\?.*)?$/.test(volver)) return volver;
+    if (s.tipo_usuario === 'VENDEDOR') return 'Tienda.html';
+    if (s.tipo_usuario === 'ADMINISTRADOR') return 'Administracion.html';
+    return 'Catalogo.html';
+  }
+  if (API.isLogged()) location.href = destino(API.getSession());
+  if (params.get('registro')) setTab('register');
+
+  function setTab(t) {
+    const isLogin = t === 'login';
+    document.getElementById('form-login').classList.toggle('hidden', !isLogin);
+    document.getElementById('form-register').classList.toggle('hidden', isLogin);
+    document.getElementById('tab-login').className = `flex-1 py-2.5 rounded-lg text-sm transition-all ${isLogin ? 'tab-active' : 'text-white/50'}`;
+    document.getElementById('tab-register').className = `flex-1 py-2.5 rounded-lg text-sm transition-all ${!isLogin ? 'tab-active' : 'text-white/50'}`;
+  }
+  function selectRole(role) {
+    document.getElementById('chip-comprador').classList.toggle('selected', role === 'COMPRADOR');
+    document.getElementById('chip-vendedor').classList.toggle('selected', role === 'VENDEDOR');
+    document.getElementById('reg-role').value = role;
+    document.getElementById('campos-vendedor').classList.toggle('hidden', role !== 'VENDEDOR');
+    document.getElementById('campo-mun-comprador').classList.toggle('hidden', role === 'VENDEDOR');
+    document.getElementById('reg-negocio').required = role === 'VENDEDOR';
+  }
+  function selectPerfil(p) {
+    document.getElementById('chip-productor').classList.toggle('selected', p === 'PRODUCTOR');
+    document.getElementById('chip-acopiador').classList.toggle('selected', p === 'ACOPIADOR');
+    document.getElementById('reg-perfil').value = p;
+  }
+  function mostrar2fa(si) {
+    document.getElementById('form-login').classList.toggle('hidden', si);
+    document.getElementById('form-2fa').classList.toggle('hidden', !si);
+    if (si) setTimeout(() => document.getElementById('codigo-2fa').focus(), 50);
+  }
+  function cancelar2fa() { pase2fa = null; mostrar2fa(false); }
+  async function do2fa(e) {
+    e.preventDefault();
+    hideAlert('error-2fa');
+    const btn = document.getElementById('btn-2fa');
+    btn.disabled = true;
+    try {
+      const r = await API.post('/auth/login/2fa', { token_2fa: pase2fa, codigo: document.getElementById('codigo-2fa').value }, { sinToken: true });
+      API.setSession(r.session, r.token);
+      location.href = destino(r.session);
+    } catch (err) {
+      showError('error-2fa', err.message);
+      if (/expir|inicia sesión/i.test(err.message)) setTimeout(cancelar2fa, 1500);
+    } finally { btn.disabled = false; }
+  }
+  function showError(id, msg) { const el = document.getElementById(id); el.textContent = msg; el.style.display = 'block'; }
+  function hideAlert(id) { document.getElementById(id).style.display = 'none'; }
+
+  async function doLogin(e) {
+    e.preventDefault();
+    hideAlert('login-error');
+    const btn = document.getElementById('btn-login');
+    btn.disabled = true; btn.textContent = 'Verificando…';
+    try {
+      const r = await API.post('/auth/login', {
+        email: document.getElementById('login-email').value.trim(),
+        password: document.getElementById('login-pass').value,
+      }, { sinToken: true });
+      if (r.requiere_2fa) { pase2fa = r.token_2fa; mostrar2fa(true); return; }
+      API.setSession(r.session, r.token);
+      location.href = destino(r.session);
+    } catch (err) {
+      showError('login-error', err.message);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Entrar';
+    }
+  }
+
+  async function doRegister(e) {
+    e.preventDefault();
+    hideAlert('reg-error');
+    const role = document.getElementById('reg-role').value;
+    const pass = document.getElementById('reg-pass').value;
+    if (pass.length < 8 || !/[A-Za-z]/.test(pass) || !/\d/.test(pass)) {
+      return showError('reg-error', 'La contraseña debe tener al menos 8 caracteres, con letras y números.');
+    }
+    if (!document.getElementById('reg-acepto').checked) {
+      return showError('reg-error', 'Para crear tu cuenta acepta el aviso de privacidad y los términos.');
+    }
+    const body = {
+      tipo_usuario: role,
+      nombre: document.getElementById('reg-nombre').value.trim(),
+      apellido: document.getElementById('reg-apellido').value.trim(),
+      email: document.getElementById('reg-email').value.trim(),
+      telefono: document.getElementById('reg-tel').value.trim() || undefined,
+      password: pass,
+      acepto_aviso: true,
+    };
+    if (role === 'COMPRADOR') body.municipio = document.getElementById('reg-mun-comp').value;
+    if (role === 'VENDEDOR') {
+      const mun = document.getElementById('reg-municipio').value;
+      Object.assign(body, {
+        nombre_negocio: document.getElementById('reg-negocio').value.trim(),
+        rfc: document.getElementById('reg-rfc').value.trim() || undefined,
+        perfil: document.getElementById('reg-perfil').value,
+        ubicacion: municipioTexto(mun),
+        lat: MUNICIPIOS[mun][0], lng: MUNICIPIOS[mun][1],
+      });
+    }
+    const btn = document.getElementById('btn-register');
+    btn.disabled = true; btn.textContent = 'Creando cuenta…';
+    try {
+      const r = await API.post('/auth/register', body, { sinToken: true });
+      API.setSession(r.session, r.token);
+      location.href = destino(r.session);
+    } catch (err) {
+      showError('reg-error', err.message);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Crear cuenta';
+    }
+  }
+</script>
+</body>
+</html>

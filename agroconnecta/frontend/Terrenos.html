@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terrenos - AgroConnecta</title>
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="icon" href="img/favicon.svg">
+<script src="js/api.js"></script>
+<script src="js/municipios.js"></script>
+<script src="agro_data.js"></script>
+<script src="vendor/leaflet/leaflet.js"></script>
+</head>
+<body class="bg-[#F8F7F2] flex min-h-screen">
+<div id="sidebar-root" data-page="terrenos"></div>
+
+<main class="flex-1 p-8 overflow-y-auto min-w-0">
+  <header class="mb-6 flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h2 class="text-4xl font-serif text-[#0B2319] mb-1">Terrenos</h2>
+      <p class="text-gray-400 text-sm" id="terrenos-count">Cargando…</p>
+    </div>
+    <div class="bg-[#F3F4F1] rounded-xl p-1 flex gap-1">
+      <button id="v-lista" onclick="vista('lista')" class="px-4 py-2 rounded-lg text-sm bg-white shadow-sm font-semibold">Lista</button>
+      <button id="v-mapa" onclick="vista('mapa')" class="px-4 py-2 rounded-lg text-sm text-gray-500">Mapa</button>
+    </div>
+  </header>
+
+  <div class="mb-6 rounded-2xl bg-[#F1EFE7] border border-[#e4e0d2] p-4 text-sm text-[#0B2319] flex gap-3">
+    <span class="text-xl">⚖️</span>
+    <p><b>AgroConnecta solo publica la oferta y conecta a las partes.</b> La compraventa se formaliza ante notario público y el arrendamiento con un contrato por escrito.
+      Los terrenos <b>ejidales</b> tienen reglas especiales (Ley Agraria): para venderlos se requiere el dominio pleno o respetar el derecho del tanto de familiares y ejidatarios. Solo se muestran terrenos de vendedores verificados.</p>
+  </div>
+
+  <!-- Filtros → GET /api/terrenos?q=&operacion=&lat=&lng=&radio_km=  (PostGIS: ST_DWithin) -->
+  <div class="flex flex-wrap gap-3 mb-8">
+    <div class="flex-1 min-w-[220px] relative">
+      <span class="absolute inset-y-0 left-4 flex items-center text-gray-400 pointer-events-none">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      </span>
+      <input id="search-terrenos" type="search" placeholder="Buscar: riego, rancho, Cunduacán…"
+             class="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#4fb877]/20 shadow-sm text-sm">
+    </div>
+    <select id="filter-operacion" class="px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-600 shadow-sm text-sm">
+      <option value="">Venta y renta</option>
+      <option value="VENTA">Venta</option>
+      <option value="ARRENDAMIENTO">Arrendamiento</option>
+    </select>
+    <select id="filter-cerca" class="px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-600 shadow-sm text-sm">
+      <option value="">Cualquier ubicación</option>
+    </select>
+    <select id="filter-radio" class="px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-600 shadow-sm text-sm">
+      <option value="25">a 25 km</option>
+      <option value="50" selected>a 50 km</option>
+      <option value="100">a 100 km</option>
+      <option value="200">a 200 km</option>
+    </select>
+  </div>
+
+  <div id="terrenos-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+  <div id="mapa-terrenos" class="hidden w-full h-[65vh] rounded-2xl overflow-hidden border border-gray-100 shadow-sm"></div>
+
+  <div id="empty-terrenos" class="hidden flex-col items-center justify-center py-20 text-center">
+    <p class="text-[#0B2319] font-semibold text-lg">Sin terrenos</p>
+    <p class="text-gray-400 text-sm">No hay terrenos que coincidan.</p>
+    <button onclick="clearSearch()" class="mt-4 text-[#2E6B42] text-sm font-semibold hover:underline">Limpiar búsqueda</button>
+  </div>
+</main>
+
+<script>
+let lista = [], mapa = null, capa = null, modo = 'lista';
+
+function terrenoCard(t) {
+  const isVenta = t.operacion === 'VENTA';
+  return `
+  <button onclick="verTerreno('${UI.esc(t.id)}')" class="text-left bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm card-hover">
+    <div class="relative h-48 overflow-hidden">
+      <img src="${UI.img(t.imagen)}" alt="" loading="lazy" class="w-full h-full object-cover" onerror="this.src=UI.FALLBACK_IMG">
+      <span class="absolute top-3 left-3 ${isVenta ? 'bg-[#f59e0b]' : 'bg-[#2E6B42]'} text-white text-[10px] font-bold px-2.5 py-1 rounded-md uppercase tracking-wider">${isVenta ? 'Venta' : 'Arrendamiento'}</span>
+      ${t.distancia_km !== null && t.distancia_km !== undefined ? `<span class="absolute top-3 right-3 bg-white/95 text-[#0B2319] text-[11px] font-bold px-2 py-1 rounded-md">a ${t.distancia_km} km</span>` : ''}
+    </div>
+    <div class="p-5">
+      <h3 class="font-bold text-[#0B2319] mb-2 text-sm leading-tight">${UI.esc(t.titulo)}</h3>
+      <div class="flex items-center gap-3 text-xs text-gray-400 mb-4 flex-wrap">
+        <span>📍 ${UI.esc(t.ubicacion)}</span><span>▦ ${Number(t.superficie).toLocaleString('es-MX')} ha</span>
+        <span class="flex items-center gap-1 text-[#2E6B42]">${UI.stars(t.vendedor_rating, 'w-3 h-3')}</span>
+      </div>
+      <p class="text-2xl font-bold text-[#2E6B42]">${UI.money0(t.precio)}</p>
+      <p class="text-[10px] text-gray-400">${isVenta ? 'precio total' : 'por mes'}</p>
+    </div>
+  </button>`;
+}
+
+let timer = null;
+const recargar = () => { clearTimeout(timer); timer = setTimeout(cargar, 250); };
+
+async function cargar() {
+  const cerca = document.getElementById('filter-cerca').value;
+  const f = { q: document.getElementById('search-terrenos').value.trim(), operacion: document.getElementById('filter-operacion').value };
+  if (cerca) Object.assign(f, { lat: MUNICIPIOS[cerca][0], lng: MUNICIPIOS[cerca][1], radio_km: document.getElementById('filter-radio').value });
+  try {
+    lista = await AGRO_DB.buscarTerrenos(f);
+    render();
+  } catch (e) { document.getElementById('terrenos-count').textContent = e.message; }
+}
+
+function render() {
+  const n = lista.length;
+  const cerca = document.getElementById('filter-cerca').value;
+  document.getElementById('terrenos-count').textContent =
+    `${n} terreno${n !== 1 ? 's' : ''} disponible${n !== 1 ? 's' : ''}${cerca ? ` a menos de ${document.getElementById('filter-radio').value} km de ${cerca}` : ''}`;
+  document.getElementById('terrenos-grid').innerHTML = lista.map(terrenoCard).join('');
+  document.getElementById('empty-terrenos').style.display = n === 0 && modo === 'lista' ? 'flex' : 'none';
+  document.getElementById('terrenos-grid').style.display = n > 0 && modo === 'lista' ? 'grid' : 'none';
+  if (modo === 'mapa') pintarMapa();
+}
+
+function vista(v) {
+  modo = v;
+  document.getElementById('v-lista').className = `px-4 py-2 rounded-lg text-sm ${v === 'lista' ? 'bg-white shadow-sm font-semibold' : 'text-gray-500'}`;
+  document.getElementById('v-mapa').className = `px-4 py-2 rounded-lg text-sm ${v === 'mapa' ? 'bg-white shadow-sm font-semibold' : 'text-gray-500'}`;
+  document.getElementById('mapa-terrenos').classList.toggle('hidden', v !== 'mapa');
+  render();
+}
+
+function pintarMapa() {
+  if (!window.L) return;
+  if (!mapa) {
+    mapa = L.map('mapa-terrenos').setView([17.95, -92.6], 8);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(mapa);
+  }
+  setTimeout(() => mapa.invalidateSize(), 50);
+  if (capa) capa.remove();
+  capa = L.featureGroup(lista.map(t => L.marker([t.lat, t.lng]).bindPopup(
+    `<b>${UI.esc(t.titulo)}</b><br>${UI.money0(t.precio)} ${t.operacion === 'VENTA' ? '' : '/ mes'}<br>
+     <a href="#" onclick="verTerreno('${UI.esc(t.id)}');return false;">Ver detalle</a>`))).addTo(mapa);
+  const cerca = document.getElementById('filter-cerca').value;
+  if (cerca) capa.addLayer(L.circle(MUNICIPIOS[cerca], { radius: document.getElementById('filter-radio').value * 1000, color: '#2E6B42', fillOpacity: 0.06 }));
+  if (lista.length) mapa.fitBounds(capa.getBounds().pad(0.2));
+}
+
+function clearSearch() {
+  document.getElementById('search-terrenos').value = '';
+  document.getElementById('filter-operacion').value = '';
+  document.getElementById('filter-cerca').value = '';
+  cargar();
+}
+
+function contactoHtml(t) {
+  if (!t.contacto) {
+    return `<a href="login.html?volver=Terrenos.html" class="bg-[#2E6B42] text-white px-4 py-2 rounded-xl text-xs font-semibold">Inicia sesión para contactar</a>`;
+  }
+  const tel = (t.contacto.telefono || '').replace(/\D/g, '');
+  const msg = encodeURIComponent(`Hola, me interesa el terreno "${t.titulo}" que vi en AgroConnecta.`);
+  return `<div class="flex flex-wrap gap-2 justify-end">
+    ${tel ? `<a target="_blank" rel="noopener" href="https://wa.me/52${tel.slice(-10)}?text=${msg}" class="bg-[#25D366] text-white px-3 py-2 rounded-xl text-xs font-semibold">WhatsApp</a>
+             <a href="tel:${tel}" class="border border-gray-200 px-3 py-2 rounded-xl text-xs font-semibold">Llamar</a>` : ''}
+    <a href="mailto:${UI.esc(t.contacto.email)}?subject=${encodeURIComponent('Terreno: ' + t.titulo)}" class="border border-gray-200 px-3 py-2 rounded-xl text-xs font-semibold">Correo</a>
+  </div>`;
+}
+
+async function verTerreno(id) {
+  let t;
+  try { t = await AGRO_DB.getTerreno(id); } catch (e) { return UI.toast(e.message, 'error'); }
+  const isVenta = t.operacion === 'VENTA';
+  const imgs = (t.imagenes || []).map(i => i.url);
+  UI.modal.open(`
+    <div class="relative h-56 sm:h-64 overflow-hidden rounded-t-2xl">
+      <img id="t-img" src="${UI.img(imgs[0] || t.imagen)}" class="w-full h-full object-cover" onerror="this.src=UI.FALLBACK_IMG">
+      <button onclick="UI.modal.close()" class="absolute top-4 right-4 bg-white/90 p-2 rounded-xl">✕</button>
+      <span class="absolute top-4 left-4 ${isVenta ? 'bg-[#f59e0b]' : 'bg-[#2E6B42]'} text-white text-xs font-bold px-3 py-1.5 rounded-xl uppercase">${isVenta ? 'Venta' : 'Arrendamiento'}</span>
+    </div>
+    <div class="p-6 sm:p-7">
+      <h2 class="text-2xl font-serif text-[#0B2319] mb-2">${UI.esc(t.titulo)}</h2>
+      <div class="flex items-center gap-4 text-sm text-gray-500 mb-4 flex-wrap">
+        <span>📍 ${UI.esc(t.ubicacion)}</span><span>▦ ${Number(t.superficie).toLocaleString('es-MX')} hectáreas</span>
+        <span class="text-xs text-gray-400">${Number(t.lat).toFixed(4)}, ${Number(t.lng).toFixed(4)}</span>
+      </div>
+      ${t.descripcion ? `<p class="text-gray-600 text-sm leading-relaxed mb-5 whitespace-pre-line">${UI.esc(t.descripcion)}</p>` : ''}
+      <div class="bg-[#F8F7F2] rounded-2xl p-4 mb-5">
+        <p class="text-3xl font-bold text-[#2E6B42]">${UI.money0(t.precio)}</p>
+        <p class="text-xs text-gray-400">${isVenta ? 'precio total de venta' : 'por mes de arrendamiento'} · ${UI.money0(t.precio / t.superficie)} por hectárea</p>
+      </div>
+      <div class="flex items-center gap-3 mb-5 p-4 bg-white rounded-2xl border border-gray-100 flex-wrap">
+        <div class="w-10 h-10 rounded-xl bg-[#2E6B42] flex items-center justify-center text-white font-bold">${UI.esc((t.vendedor_nombre || '?').substring(0, 2).toUpperCase())}</div>
+        <div class="flex-1 min-w-[140px]">
+          <a href="Perfil.html?vendedor=${UI.esc(t.id_vendedor)}" class="font-semibold text-[#0B2319] text-sm hover:underline">${UI.esc(t.vendedor_nombre)} ${t.vendedor_verificado ? '<span class="text-[#2E6B42]">✔</span>' : ''}</a>
+          <div class="flex gap-0.5 mt-0.5">${UI.stars(t.vendedor_rating, 'w-3.5 h-3.5')}</div>
+        </div>
+        ${contactoHtml(t)}
+        <p class="text-[11px] text-gray-400 mt-3">La operación se formaliza fuera de la plataforma, ante notario. Verifica la situación legal del predio (Registro Público de la Propiedad o Registro Agrario Nacional) antes de pagar.</p>
+      </div>
+      <div id="map-modal" class="w-full h-56 rounded-2xl overflow-hidden border border-gray-100"></div>
+    </div>`, { ancho: 'max-w-2xl' });
+  setTimeout(() => {
+    const m = L.map('map-modal').setView([t.lat, t.lng], 12);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(m);
+    L.marker([t.lat, t.lng]).addTo(m);
+  }, 60);
+}
+
+document.getElementById('filter-cerca').insertAdjacentHTML('beforeend',
+  Object.keys(MUNICIPIOS).map(m => `<option value="${m}">Cerca de ${m}</option>`).join(''));
+document.getElementById('search-terrenos').addEventListener('input', recargar);
+['filter-operacion', 'filter-cerca', 'filter-radio'].forEach(id => document.getElementById(id).addEventListener('change', cargar));
+cargar();
+</script>
+<script src="Barra_Lateral.js"></script>
+</body>
+</html>
